@@ -1,0 +1,57 @@
+# Changelog
+
+## [0.3.3] - 25/03/2026
+- Bug fixes
+
+## [0.3.2] - 23/03/2026
+- Add resolve conversation feature for all SCM providers (GitHub, GitLab, Bitbucket, Azure DevOps)
+- Add `codeant pr resolve` CLI command
+
+## [0.3.1] - 23/03/2026
+- Bug fixes
+
+## [0.3.0] - 23/03/2026
+- Token optimization
+
+## [0.2.9] - 23/03/2026
+- Updated url
+
+## [0.2.8] - 23/03/2026
+- Updated url
+
+## [0.2.7] - 22/03/2026
+- Analytics tracking
+
+## [0.2.6] - 21/03/2026
+- API Key mapping
+
+## [0.2.5] - 21/03/2026
+- Secrets matching better
+
+## [0.2.4] - 21/03/2026
+- Deprecation of some features
+
+## [0.2.3] - 21/03/2026
+- Better CodeAnt review matching
+
+## [0.2.2] - 20/03/2026
+- Headless mode
+
+## [0.2.1] - 20/03/2026
+- Per-file parallel agentic review
+
+## [0.2.0] - 19/03/2026
+- Add SCM integration layer with support for GitHub, GitLab, Bitbucket, and Azure DevOps
+
+## [0.1.9] - 19/03/2026
+- Bug fixes
+
+## [0.1.8] - 19/03/2026
+- Bug fixes
+
+## [0.1.7] - 19/03/2026
+- Bug fixes
+
+## [0.1.6] - 19/03/2026
+- CLI UI Improvements
+- More review trigger options
