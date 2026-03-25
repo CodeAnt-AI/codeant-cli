@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.4] - 25/03/2026
+- Telemetry opt-out flag
+
 ## [0.3.3] - 25/03/2026
 - Bug fixes
 

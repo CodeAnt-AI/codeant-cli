@@ -13,7 +13,7 @@ import Review from './commands/review.js';
 import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
-import { track, shutdown as analyticsShutdown } from './utils/analytics.js';
+import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
 
 // Read version from package.json
 const require = createRequire(import.meta.url);
@@ -342,6 +342,28 @@ program
         includeAddressed: opts.includeAddressed || false,
         createdAfter: opts.createdAfter,
       }));
+    });
+
+  // ─── Telemetry control ───
+  program
+    .command('set-telemetry <enabled>')
+    .description('Enable or disable telemetry / PostHog analytics (true or false)')
+    .action((enabled) => {
+      const val = enabled.toLowerCase();
+      if (val !== 'true' && val !== 'false') {
+        console.error('Usage: codeant set-telemetry <true|false>');
+        process.exit(1);
+      }
+      setConfigValue('telemetryEnabled', val === 'true');
+      console.log(`Telemetry ${val === 'true' ? 'enabled' : 'disabled'}.`);
+    });
+
+  program
+    .command('get-telemetry')
+    .description('Show current telemetry status')
+    .action(() => {
+      const disabled = isTelemetryDisabled();
+      console.log(`Telemetry is currently ${disabled ? 'disabled' : 'enabled'}.`);
     });
 
   // ─── Analytics tracking (for external callers like Claude Code skills) ───
