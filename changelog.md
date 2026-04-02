@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.5] - 01/04/2026
+- Local secret detection
+
 ## [0.3.4] - 25/03/2026
 - Telemetry opt-out flag
 

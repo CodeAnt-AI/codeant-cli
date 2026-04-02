@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Code review CLI tool",
   "type": "module",
   "bin": {
@@ -40,7 +40,8 @@
     "minimatch": "^10.1.1",
     "open": "^10.1.0",
     "posthog-node": "^5.28.5",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "smol-toml": "^1.6.1"
   },
   "devDependencies": {
     "vitest": "^1.6.1"
