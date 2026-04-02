@@ -87,8 +87,8 @@ export async function runReviewHeadless(options = {}) {
   } = options;
 
   // If the CLI config doesn't have an apiKey but the extension passed one, persist it
-  if (apiKey && !getConfigValue('apiKey')) {
-    setConfigValue('apiKey', apiKey);
+  if (apiKey && !getConfigValue('apiKeyV2')) {
+    setConfigValue('apiKeyV2', apiKey);
   }
 
   // Temporarily set env vars so fetchApi picks them up

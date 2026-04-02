@@ -5,11 +5,11 @@ import { getConfigValue, setConfigValue } from '../utils/config.js';
 export default function Logout() {
   const { exit } = useApp();
 
-  const wasLoggedIn = !!getConfigValue('apiKey');
+  const wasLoggedIn = !!getConfigValue('apiKeyV2');
 
   useEffect(() => {
     if (wasLoggedIn) {
-      setConfigValue('apiKey', null);
+      setConfigValue('apiKeyV2', null);
     }
     exit();
   }, []);

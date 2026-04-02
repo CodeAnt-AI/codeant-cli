@@ -14,7 +14,7 @@ export default function Login() {
 
   useEffect(() => {
     // Check if already logged in
-    const existingToken = getConfigValue('apiKey');
+    const existingToken = getConfigValue('apiKeyV2');
     if (existingToken) {
       setStatus('already_logged_in');
       setTimeout(() => exit(), 100);
@@ -48,7 +48,7 @@ export default function Login() {
           clearTimeout(timeoutId);
 
           // Save the API key
-          setConfigValue('apiKey', token);
+          setConfigValue('apiKeyV2', token);
 
           setStatus('success');
           setTimeout(() => exit(), 100);

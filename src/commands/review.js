@@ -31,7 +31,7 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
   const [fileCount, setFileCount] = useState(0);
   const [reviewMeta, setReviewMeta] = useState(null);
 
-  const apiKey = getConfigValue('apiKey');
+  const apiKey = getConfigValue('apiKeyV2');
 
   useEffect(() => {
     if (!apiKey) {
