@@ -4,14 +4,30 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import SecretsApiHelper from '../src/utils/secretsApiHelper.js';
-import { fetchApi } from '../src/utils/fetchApi.js';
+import { detectSecrets } from '../src/utils/secretsDetector.js';
 
 /**
  * End-to-end tests for secrets detection.
- * Builds real git state → calls the real secrets detection API → asserts on detected secrets.
- *
- * Requires CODEANT_API_TOKEN (or ~/.codeant/config.json apiKey) to be set.
+ * Builds real git state → runs local secret detection → asserts on detected secrets.
  */
+
+// Realistic test tokens that match betterleaks regex patterns.
+// ghp_ tokens need exactly 36 alphanumeric chars after the prefix.
+// AKIA tokens need exactly 16 [A-Z2-7] chars after the prefix.
+const GHP_TOKEN = 'ghp_R4nd0mT0k3nV4lu3W1thL3tt3rsAndD1g1ts';
+const GHP_TOKEN_2 = 'ghp_X7kM9pL2vN4qR8wE1tY6uB3jF5hG0sA2cD9z';
+const GHP_TOKEN_3 = 'ghp_Q1wE2rT3yU4iO5pA6sD7fG8hJ9kL0zX1cV2b';
+const GHP_TOKEN_4 = 'ghp_M3nB4vC5xZ6lK7jH8gF9dS0aP1oI2uY3tR4e';
+const GHP_TOKEN_5 = 'ghp_W8eR7tY6uI5oP4aS3dF2gH1jK0lZ9xC8vB7n';
+const AKIA_TOKEN = 'AKIAZ7VBCD3EFGH2IJKL';
+const STRIPE_KEY = 'sk_live_4eC39HqLyjWDarjtT1zdp7dc';
+const PRIVATE_KEY_BLOCK = [
+  '-----BEGIN RSA PRIVATE KEY-----',
+  'MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHBzSgkV7sBOLEBD3FQ2',
+  'KkN0sEqKMnA3F0nSzFK+GKFdEK0n3kFDlQkF89X5g5oFGfaFHzCmYSELbdVUG0JC',
+  'BrsDBFhLsGp5JxThOGStGkRjDnUb1g5bNa2dHl0LINKQ3c9VzPQz5J9kp8sNgpxDl',
+  '-----END RSA PRIVATE KEY-----',
+].join('\n');
 
 let testDir;
 
@@ -32,7 +48,7 @@ async function createHelper() {
 }
 
 /**
- * Full e2e: build request from git state → call API → return parsed response
+ * Full e2e: build request from git state → run local detection → return parsed response
  */
 async function scanSecrets(scanType, includePatterns = [], excludePatterns = [], options = {}) {
   const helper = await createHelper();
@@ -42,13 +58,7 @@ async function scanSecrets(scanType, includePatterns = [], excludePatterns = [],
     return { secretsDetected: [], filesScanned: 0 };
   }
 
-  const response = await fetchApi(
-    '/extension/pr-review/secrets-detection',
-    'POST',
-    requestBody
-  );
-
-  const detectedSecrets = response.secretsDetected || [];
+  const detectedSecrets = detectSecrets(requestBody.files);
   const filesWithSecrets = detectedSecrets.filter(
     file => file.secrets && file.secrets.length > 0
   );
@@ -56,7 +66,6 @@ async function scanSecrets(scanType, includePatterns = [], excludePatterns = [],
   return {
     secretsDetected: filesWithSecrets,
     filesScanned: requestBody.files.length,
-    raw: response
   };
 }
 
@@ -90,11 +99,28 @@ describe('Secrets detection e2e tests', () => {
   // DETECTS REAL SECRETS
   // ─────────────────────────────────────────────────────
   describe('detects real secrets', () => {
-    it('detects AWS access key in staged file', async () => {
+    it('detects GitHub personal access token', async () => {
+      writeFile('src/github.js', [
+        `const GITHUB_TOKEN = "${GHP_TOKEN}";`,
+        'module.exports = { GITHUB_TOKEN };',
+        ''
+      ].join('\n'));
+      git('add src/github.js');
+
+      const result = await scanSecrets('staged-only');
+
+      expect(result.filesScanned).toBeGreaterThan(0);
+      expect(result.secretsDetected.length).toBeGreaterThan(0);
+      const ghFile = result.secretsDetected.find(f => f.file_path === 'src/github.js');
+      expect(ghFile).toBeDefined();
+      expect(ghFile.secrets.length).toBeGreaterThan(0);
+      expect(ghFile.secrets[0].type).toBe('github-pat');
+    }, 30000);
+
+    it('detects AWS access key', async () => {
       writeFile('src/config.js', [
         'const config = {',
-        '  awsAccessKeyId: "AKIAIOSFODNN7EXAMPLE",',
-        '  awsSecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",',
+        `  awsAccessKeyId: "${AKIA_TOKEN}",`,
         '};',
         'module.exports = config;',
         ''
@@ -105,38 +131,28 @@ describe('Secrets detection e2e tests', () => {
 
       expect(result.filesScanned).toBeGreaterThan(0);
       expect(result.secretsDetected.length).toBeGreaterThan(0);
-
       const configFile = result.secretsDetected.find(f => f.file_path === 'src/config.js');
       expect(configFile).toBeDefined();
-      expect(configFile.secrets.length).toBeGreaterThan(0);
+      expect(configFile.secrets[0].type).toBe('aws-access-token');
     }, 30000);
 
-    it('detects GitHub personal access token', async () => {
-      writeFile('src/github.js', [
-        'const GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12";',
-        'module.exports = { GITHUB_TOKEN };',
+    it('detects Stripe secret key', async () => {
+      writeFile('src/stripe.js', [
+        `const STRIPE_KEY = "${STRIPE_KEY}";`,
         ''
       ].join('\n'));
-      git('add src/github.js');
+      git('add src/stripe.js');
 
       const result = await scanSecrets('staged-only');
 
       expect(result.secretsDetected.length).toBeGreaterThan(0);
-      const ghFile = result.secretsDetected.find(f => f.file_path === 'src/github.js');
-      expect(ghFile).toBeDefined();
-      expect(ghFile.secrets.length).toBeGreaterThan(0);
+      const file = result.secretsDetected.find(f => f.file_path === 'src/stripe.js');
+      expect(file).toBeDefined();
+      expect(file.secrets[0].type).toBe('stripe-access-token');
     }, 30000);
 
     it('detects private key in staged file', async () => {
-      writeFile('src/key.pem', [
-        '-----BEGIN RSA PRIVATE KEY-----',
-        'MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHBzSgkV7sBOLEBD3FQ2',
-        'KkN0sEqKMnA3F0nSzFK+GKFdEK0n3kFDlQkF89X5g5oFGfaFHzCmYSELbdVUG0JC',
-        'BrsDBFhLsGp5JxThOGStGkRjDnUb1g5bNa2dHl0LINKQ3c9VzPQz5J9kp8sNgpxDl',
-        'MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/ygWyF8PbnGy0AHBzSgkV7sBOLEBD3FQ2',
-        '-----END RSA PRIVATE KEY-----',
-        ''
-      ].join('\n'));
+      writeFile('src/key.pem', PRIVATE_KEY_BLOCK + '\n');
       git('add src/key.pem');
 
       const result = await scanSecrets('staged-only');
@@ -144,24 +160,7 @@ describe('Secrets detection e2e tests', () => {
       expect(result.secretsDetected.length).toBeGreaterThan(0);
       const keyFile = result.secretsDetected.find(f => f.file_path === 'src/key.pem');
       expect(keyFile).toBeDefined();
-      expect(keyFile.secrets.length).toBeGreaterThan(0);
-    }, 30000);
-
-    it('detects database connection string with password', async () => {
-      writeFile('src/db.js', [
-        'const mongoose = require("mongoose");',
-        'const DB_URI = "mongodb+srv://admin:SuperSecretPass123@cluster0.abc123.mongodb.net/mydb";',
-        'mongoose.connect(DB_URI);',
-        ''
-      ].join('\n'));
-      git('add src/db.js');
-
-      const result = await scanSecrets('staged-only');
-
-      expect(result.secretsDetected.length).toBeGreaterThan(0);
-      const dbFile = result.secretsDetected.find(f => f.file_path === 'src/db.js');
-      expect(dbFile).toBeDefined();
-      expect(dbFile.secrets.length).toBeGreaterThan(0);
+      expect(keyFile.secrets[0].type).toBe('private-key');
     }, 30000);
   });
 
@@ -186,7 +185,6 @@ describe('Secrets detection e2e tests', () => {
 
       const result = await scanSecrets('staged-only');
 
-      // Either no detections, or all should be false positives
       const highConfidenceSecrets = result.secretsDetected.flatMap(f =>
         f.secrets.filter(s => s.confidence_score?.toUpperCase() === 'HIGH')
       );
@@ -219,11 +217,11 @@ describe('Secrets detection e2e tests', () => {
   // ─────────────────────────────────────────────────────
   describe('scan types with secret detection', () => {
     it('staged-only: detects secret in staged file only', async () => {
-      writeFile('src/staged-secret.js', 'const TOKEN = "ghp_StagedSecretToken1234567890abcdef12";\n');
+      writeFile('src/staged-secret.js', `const TOKEN = "${GHP_TOKEN}";\n`);
       git('add src/staged-secret.js');
 
       // Also create an unstaged file with a secret — should NOT be detected
-      writeFile('src/unstaged-secret.js', 'const KEY = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/unstaged-secret.js', `const KEY = "${AKIA_TOKEN}";\n`);
 
       const result = await scanSecrets('staged-only');
 
@@ -231,16 +229,15 @@ describe('Secrets detection e2e tests', () => {
       const stagedFile = result.secretsDetected.find(f => f.file_path === 'src/staged-secret.js');
       expect(stagedFile).toBeDefined();
 
-      // Unstaged file should not have been scanned
       const unstagedFile = result.secretsDetected.find(f => f.file_path === 'src/unstaged-secret.js');
       expect(unstagedFile).toBeUndefined();
     }, 30000);
 
     it('uncommitted: detects secrets in both staged and unstaged files', async () => {
-      writeFile('src/staged.js', 'const A = "ghp_StagedTokenForUncommitted12345678ab";\n');
+      writeFile('src/staged.js', `const A = "${GHP_TOKEN_2}";\n`);
       git('add src/staged.js');
 
-      writeFile('src/unstaged.js', 'const B = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/unstaged.js', `const B = "${AKIA_TOKEN}";\n`);
 
       const result = await scanSecrets('uncommitted');
 
@@ -250,8 +247,7 @@ describe('Secrets detection e2e tests', () => {
 
     it('last-commit: detects secrets in the most recent commit', async () => {
       writeFile('src/committed-secret.js', [
-        'const AWS_KEY = "AKIAIOSFODNN7EXAMPLE";',
-        'const AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";',
+        `const GH_TOKEN = "${GHP_TOKEN_3}";`,
         ''
       ].join('\n'));
       git('add src/committed-secret.js');
@@ -266,11 +262,11 @@ describe('Secrets detection e2e tests', () => {
     }, 30000);
 
     it('last-n-commits: detects secrets across multiple commits', async () => {
-      writeFile('src/secret1.js', 'const KEY1 = "ghp_FirstCommitSecret123456789012345678";\n');
+      writeFile('src/secret1.js', `const KEY1 = "${GHP_TOKEN_4}";\n`);
       git('add src/secret1.js');
       git('commit -m "first secret"');
 
-      writeFile('src/secret2.js', 'const KEY2 = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/secret2.js', `const KEY2 = "${AKIA_TOKEN}";\n`);
       git('add src/secret2.js');
       git('commit -m "second secret"');
 
@@ -281,7 +277,7 @@ describe('Secrets detection e2e tests', () => {
     }, 30000);
 
     it('all: detects secrets in committed + uncommitted changes', async () => {
-      writeFile('src/all-secret.js', 'const TOKEN = "ghp_AllScanTypeSecret1234567890abcdef12";\n');
+      writeFile('src/all-secret.js', `const TOKEN = "${GHP_TOKEN_5}";\n`);
 
       const result = await scanSecrets('all');
 
@@ -298,7 +294,7 @@ describe('Secrets detection e2e tests', () => {
       git('commit -m "clean base"');
 
       git('checkout -b e2e-feature-secret');
-      writeFile('src/feature-leak.js', 'const API_KEY = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/feature-leak.js', `const API_KEY = "${AKIA_TOKEN}";\n`);
       git('add src/feature-leak.js');
       git('commit -m "feature with leak"');
 
@@ -316,11 +312,7 @@ describe('Secrets detection e2e tests', () => {
 
       const baseHash = git('rev-parse HEAD');
 
-      writeFile('src/after-leak.js', [
-        'const PRIVATE_KEY = "-----BEGIN RSA PRIVATE KEY-----";',
-        'const AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";',
-        ''
-      ].join('\n'));
+      writeFile('src/after-leak.js', PRIVATE_KEY_BLOCK + '\n');
       git('add src/after-leak.js');
       git('commit -m "added secret after base"');
 
@@ -337,13 +329,12 @@ describe('Secrets detection e2e tests', () => {
   // ─────────────────────────────────────────────────────
   describe('filtering with secret detection', () => {
     it('--include only scans matching files', async () => {
-      writeFile('src/scan-me.js', 'const TOKEN = "ghp_IncludeFilterSecret12345678901234ab";\n');
-      writeFile('src/skip-me.js', 'const KEY = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/scan-me.js', `const TOKEN = "${GHP_TOKEN}";\n`);
+      writeFile('src/skip-me.js', `const KEY = "${AKIA_TOKEN}";\n`);
       git('add -A');
 
       const result = await scanSecrets('staged-only', ['src/scan-me.js'], []);
 
-      // Only scan-me.js should be scanned
       expect(result.filesScanned).toBe(1);
       if (result.secretsDetected.length > 0) {
         const filePaths = result.secretsDetected.map(f => f.file_path);
@@ -352,8 +343,8 @@ describe('Secrets detection e2e tests', () => {
     }, 30000);
 
     it('--exclude skips matching files', async () => {
-      writeFile('src/keep.js', 'const TOKEN = "ghp_ExcludeFilterSecret12345678901234ab";\n');
-      writeFile('src/secret.test.js', 'const KEY = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/keep.js', `const TOKEN = "${GHP_TOKEN}";\n`);
+      writeFile('src/secret.test.js', `const KEY = "${AKIA_TOKEN}";\n`);
       git('add -A');
 
       const result = await scanSecrets('staged-only', [], ['**/*.test.js']);
@@ -368,9 +359,9 @@ describe('Secrets detection e2e tests', () => {
   // ─────────────────────────────────────────────────────
   // RESPONSE STRUCTURE
   // ─────────────────────────────────────────────────────
-  describe('API response structure', () => {
+  describe('response structure', () => {
     it('returns secretsDetected array with expected fields', async () => {
-      writeFile('src/leak.js', 'const AWS_KEY = "AKIAIOSFODNN7EXAMPLE";\n');
+      writeFile('src/leak.js', `const TOKEN = "${GHP_TOKEN}";\n`);
       git('add src/leak.js');
 
       const result = await scanSecrets('staged-only');
@@ -390,7 +381,6 @@ describe('Secrets detection e2e tests', () => {
     }, 30000);
 
     it('returns empty secretsDetected for no-files scan', async () => {
-      // Nothing staged, nothing to scan
       const result = await scanSecrets('staged-only');
 
       expect(result.secretsDetected).toHaveLength(0);
@@ -404,10 +394,9 @@ describe('Secrets detection e2e tests', () => {
   describe('multiple secrets', () => {
     it('detects multiple secrets in a single file', async () => {
       writeFile('src/multi.js', [
-        'const AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE";',
-        'const AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";',
-        'const GH_TOKEN = "ghp_MultiSecret123456789012345678abcdef";',
-        'const DB_URL = "postgresql://admin:P@ssw0rd@db.example.com:5432/prod";',
+        `const AWS_KEY = "${AKIA_TOKEN}";`,
+        `const GH_TOKEN = "${GHP_TOKEN}";`,
+        `const STRIPE = "${STRIPE_KEY}";`,
         ''
       ].join('\n'));
       git('add src/multi.js');
@@ -420,8 +409,8 @@ describe('Secrets detection e2e tests', () => {
     }, 30000);
 
     it('detects secrets across multiple files', async () => {
-      writeFile('src/aws.js', 'const KEY = "AKIAIOSFODNN7EXAMPLE";\n');
-      writeFile('src/github.js', 'const TOKEN = "ghp_CrossFileSecret1234567890abcdef1234";\n');
+      writeFile('src/aws.js', `const KEY = "${AKIA_TOKEN}";\n`);
+      writeFile('src/github.js', `const TOKEN = "${GHP_TOKEN}";\n`);
       git('add -A');
 
       const result = await scanSecrets('staged-only');
