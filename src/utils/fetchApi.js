@@ -12,7 +12,7 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
   };
 
   // Add auth token from config or env
-  const token = process.env.CODEANT_API_TOKEN || getConfigValue('apiKey');
+  const token = process.env.CODEANT_API_TOKEN || getConfigValue('apiKeyV2');
   if (token) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }

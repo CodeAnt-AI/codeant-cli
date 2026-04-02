@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.6] - 02/04/2026
+- new login approach
+
 ## [0.3.5] - 01/04/2026
 - Local secret detection
 

@@ -24,7 +24,7 @@ function getClient() {
 
 /** Use the API key directly as distinct ID */
 function getDistinctId() {
-  return process.env.CODEANT_API_TOKEN || getConfigValue('apiKey') || 'anonymous';
+  return process.env.CODEANT_API_TOKEN || getConfigValue('apiKeyV2') || 'anonymous';
 }
 
 /**
