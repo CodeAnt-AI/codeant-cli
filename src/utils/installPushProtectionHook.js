@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, chmodSync, existsSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, chmodSync, existsSync, unlinkSync, mkdirSync } from 'fs';
 import path from 'path';
 
 const HOOK_MARKER = '# codeant-push-protection';
@@ -98,6 +98,9 @@ export function installPushProtectionHook(workspacePath, options = {}) {
   }
 
   const hooksDir = getHooksDir(gitRoot);
+  if (!existsSync(hooksDir)) {
+    mkdirSync(hooksDir, { recursive: true });
+  }
   const hookPath = path.join(hooksDir, 'pre-push');
 
   // If hook already exists, check if it's ours
