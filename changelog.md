@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.7] - 03/04/2026
+- Pre-push hook
+
 ## [0.3.6] - 02/04/2026
 - new login approach
 
