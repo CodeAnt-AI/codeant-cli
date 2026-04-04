@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.0] - 04/04/2026
+- Set api key
+
 ## [0.3.9] - 04/04/2026
 - Secrets bypass
 
