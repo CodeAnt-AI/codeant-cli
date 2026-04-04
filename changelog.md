@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.8] - 03/04/2026
+- Graceful handling of review
+
 ## [0.3.7] - 03/04/2026
 - Pre-push hook
 

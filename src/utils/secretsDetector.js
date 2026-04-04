@@ -185,7 +185,6 @@ export function scanFile(filePath, content) {
         type: rule.id,
         description: rule.description,
         line_number: lineNum,
-        confidence_score: rule.entropy > 0 ? 'HIGH' : 'MEDIUM',
         secret_snippet: maskSecret(secret),
       });
     }

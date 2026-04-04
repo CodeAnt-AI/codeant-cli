@@ -7,18 +7,7 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 const DIVIDER = '─'.repeat(55);
 const STEPS = ['Init', 'Fetch', 'Scan'];
 
-const CONFIDENCE_COLORS = {
-  HIGH: 'red',
-  MEDIUM: 'yellow',
-  LOW: 'cyan',
-  FALSE_POSITIVE: 'gray',
-};
-
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getConfidenceColor(score) {
-  return CONFIDENCE_COLORS[score?.toUpperCase()] || 'gray';
-}
 
 function padEnd(str, len) {
   return str + ' '.repeat(Math.max(0, len - str.length));
@@ -211,21 +200,12 @@ export function renderNotLoggedIn() {
   );
 }
 
-export function renderDone(secrets, failOn, shouldFailOn, startTime, fileCount, meta) {
+export function renderDone(secrets, startTime, fileCount, meta) {
   const allSecrets = secrets.flatMap(file =>
     file.secrets.map(s => ({ ...s, file_path: file.file_path }))
   );
 
-  const blockingSecrets = allSecrets.filter(s => shouldFailOn(s.confidence_score));
-  const hasBlocking = blockingSecrets.length > 0;
   const elapsed = startTime ? formatElapsed(startTime) : null;
-
-  // Count by confidence
-  const counts = {};
-  allSecrets.forEach(s => {
-    const conf = s.confidence_score?.toUpperCase() || 'UNKNOWN';
-    counts[conf] = (counts[conf] || 0) + 1;
-  });
 
   // Group by file
   const grouped = {};
@@ -269,9 +249,6 @@ export function renderDone(secrets, failOn, shouldFailOn, startTime, fileCount, 
       ));
 
       fileSecrets.forEach((secret, si) => {
-        const conf = secret.confidence_score?.toUpperCase() || 'UNKNOWN';
-        const confColor = getConfidenceColor(conf);
-        const isBlocking = shouldFailOn(secret.confidence_score);
         const isLast = si === fileSecrets.length - 1;
         const branch = isLast ? '└─' : '├─';
         const lineStr = secret.line_number ? `L${secret.line_number}` : '';
@@ -279,12 +256,8 @@ export function renderDone(secrets, failOn, shouldFailOn, startTime, fileCount, 
         els.push(React.createElement(
           Box, { key: `s-${fi}-${si}` },
           React.createElement(Text, { color: 'gray' }, `    ${branch} `),
-          React.createElement(Text, {
-            color: confColor,
-            bold: isBlocking,
-          }, padEnd(conf, 16)),
           React.createElement(Text, { color: 'gray' }, padEnd(lineStr, 6)),
-          React.createElement(Text, { color: isBlocking ? 'white' : 'gray', dimColor: !isBlocking }, secret.type || ''),
+          React.createElement(Text, { color: 'white' }, secret.type || ''),
         ));
       });
 
@@ -330,28 +303,17 @@ export function renderDone(secrets, failOn, shouldFailOn, startTime, fileCount, 
 
   // Secret stats line
   if (allSecrets.length > 0) {
-    const stats = [`${allSecrets.length} secret${allSecrets.length !== 1 ? 's' : ''} found`];
-    for (const conf of ['HIGH', 'MEDIUM', 'LOW', 'FALSE_POSITIVE']) {
-      if (counts[conf]) {
-        const label = conf === 'FALSE_POSITIVE' ? 'false positive' : conf.toLowerCase();
-        stats.push(`${counts[conf]} ${label}`);
-      }
-    }
     els.push(React.createElement(
-      Text, { key: 'stats', color: 'gray' }, stats.join('  ·  '),
+      Text, { key: 'stats', color: 'gray' },
+      `${allSecrets.length} secret${allSecrets.length !== 1 ? 's' : ''} found`,
     ));
   }
 
   // Status line
-  if (hasBlocking) {
+  if (allSecrets.length > 0) {
     els.push(React.createElement(
       Text, { key: 'status', color: 'red', bold: true },
-      `✗ ${blockingSecrets.length} blocking secret${blockingSecrets.length !== 1 ? 's' : ''} — remove before committing`,
-    ));
-  } else if (allSecrets.length > 0) {
-    els.push(React.createElement(
-      Text, { key: 'status', color: 'green', bold: true },
-      '✓ No blocking secrets found',
+      `✗ ${allSecrets.length} secret${allSecrets.length !== 1 ? 's' : ''} found — remove before committing`,
     ));
   } else {
     els.push(React.createElement(

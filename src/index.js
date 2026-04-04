@@ -10,6 +10,7 @@ import GetBaseUrl from './commands/getBaseUrl.js';
 import Login from './commands/login.js';
 import Logout from './commands/logout.js';
 import Review from './commands/review.js';
+import { runReviewHeadless } from './reviewHeadless.js';
 import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
@@ -58,7 +59,6 @@ program
   .option('--last-n-commits <n>', 'Scan last n commits (max 5)', parseInt)
   .option('--base <branch>', 'Compare against a specific base branch (e.g. --base develop)')
   .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
-  .option('--fail-on <level>', 'Fail on issues at or above this level: BLOCKER, CRITICAL, MAJOR, MINOR, INFO (default: CRITICAL)', 'CRITICAL')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
   .option('--exclude <paths>', 'Comma-separated list of file paths glob patterns to exclude')
   .action((options) => {
@@ -95,9 +95,7 @@ program
       ? (Array.isArray(options.exclude) ? options.exclude : splitGlobs(options.exclude))
       : [];
 
-    const failOn = options.failOn?.toUpperCase() || 'CRITICAL';
-
-    render(React.createElement(Secrets, { scanType, failOn, include, exclude, lastNCommits, baseBranch, baseCommit }));
+    render(React.createElement(Secrets, { scanType, include, exclude, lastNCommits, baseBranch, baseCommit }));
   });
 
 program
@@ -114,7 +112,8 @@ program
   .option('--fail-on <level>', 'Fail on issues at or above this level: BLOCKER, CRITICAL, MAJOR, MINOR, INFO (default: CRITICAL)', 'CRITICAL')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
   .option('--exclude <paths>', 'Comma-separated list of file paths glob patterns to exclude')
-  .action((options) => {
+  .option('--headless', 'Output clean JSON with no spinners (for agents and CI)')
+  .action(async (options) => {
     let scanType = 'all';
     let lastNCommits = 1;
     let baseBranch = null;
@@ -150,7 +149,23 @@ program
 
     const failOn = options.failOn?.toUpperCase() || 'CRITICAL';
 
-    render(React.createElement(Review, { scanType, lastNCommits, failOn, include, exclude, baseBranch, baseCommit }));
+    if (options.headless) {
+      const result = await runReviewHeadless({
+        workspacePath: process.cwd(),
+        scanType,
+        lastNCommits,
+        include,
+        exclude,
+        baseBranch,
+        baseCommit,
+        onProgress: (msg) => console.error(`[progress] ${msg}`),
+        onFilesReady: (files, meta) => console.error(`[files] Reviewing ${files.length} file(s)`),
+      });
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.error ? 1 : 0);
+    } else {
+      render(React.createElement(Review, { scanType, lastNCommits, failOn, include, exclude, baseBranch, baseCommit }));
+    }
   });
 
 program
