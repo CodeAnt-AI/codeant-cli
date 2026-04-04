@@ -105,7 +105,12 @@ export function installPushProtectionHook(workspacePath) {
       chmodSync(hookPath, 0o755);
       return { installed: true, hookPath, message: 'Hook updated' };
     }
-    // There's a user-managed hook — append our block (no duplicate shebang)
+    // There's a user-managed hook — append only for shell hooks to avoid breaking non-shell scripts
+    const firstLine = existing.split('\n', 1)[0] || '';
+    const isShellHook = firstLine.startsWith('#!') ? /\/(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
+    if (!isShellHook) {
+      return { installed: false, hookPath, message: 'Existing pre-push hook is non-shell; cannot append CodeAnt block safely' };
+    }
     const appended = existing.trimEnd() + '\n\n' + buildHookBlock() + '\n';
     writeFileSync(hookPath, appended, 'utf-8');
     chmodSync(hookPath, 0o755);
