@@ -22,7 +22,7 @@ function buildHookBlock() {
 # Auto-installed by CodeAnt AI — blocks pushes containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 command -v codeant >/dev/null 2>&1 || exit 0
-codeant secrets --committed
+codeant secrets --committed --hook
 ${HOOK_MARKER_END}`;
 }
 

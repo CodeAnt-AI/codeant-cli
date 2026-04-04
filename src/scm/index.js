@@ -95,3 +95,10 @@ export function listCodeReviews(opts) { return getProvider(opts.remote).listCode
 export function getCodeReview(opts) { return getProvider(opts.remote).getCodeReview(opts); }
 export function searchComments(opts) { return getProvider(opts.remote).searchComments(opts); }
 export function resolveConversation(opts) { return getProvider(opts.remote).resolveConversation(opts); }
+
+// Auto-detect base URL (git host) from origin
+export function detectBaseUrl() {
+  const origin = getOrigin();
+  if (!origin) return '';
+  const host = parseOriginUrl(origin); return host ? 'https://' + host : '';
+}
