@@ -7,6 +7,8 @@ import { createRequire } from 'module';
 import Secrets from './commands/secrets.js';
 import SetBaseUrl from './commands/setBaseUrl.js';
 import GetBaseUrl from './commands/getBaseUrl.js';
+import SetApiKey from './commands/setApiKey.js';
+import GetApiKey from './commands/getApiKey.js';
 import Login from './commands/login.js';
 import Logout from './commands/logout.js';
 import Review from './commands/review.js';
@@ -181,6 +183,20 @@ program
     .description('Show the current API base URL')
     .action(() => {
       render(React.createElement(GetBaseUrl));
+    });
+
+  program
+    .command('set-codeant-api-key <key>')
+    .description('Set the CodeAnt API key')
+    .action((key) => {
+      render(React.createElement(SetApiKey, { apiKey: key }));
+    });
+
+  program
+    .command('get-codeant-api-key')
+    .description('Show the current CodeAnt API key')
+    .action(() => {
+      render(React.createElement(GetApiKey));
     });
 
   program
