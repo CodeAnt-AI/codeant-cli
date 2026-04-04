@@ -102,19 +102,24 @@ export default function Secrets({ scanType = 'all', include = [], exclude = [], 
   }
 
   // Handle bypass selection
-  function handleBypassSelect(reason) {
+  async function handleBypassSelect(reason) {
     if (reason === 'cancel') {
       reportBlockAndExit();
       return;
     }
     const remote = getRemoteBody();
     if (remote) {
-      fetchApi('/extension/push-protection/bypass', 'POST', {
-        ...remote,
-        secrets: buildSecretsPayload(),
-        reason: reason.startsWith('other:') ? 'other' : reason,
-        custom_reason: reason.startsWith('other:') ? reason.slice(6) : undefined,
-      }).catch(() => {});
+      try {
+        await fetchApi('/extension/push-protection/bypass', 'POST', {
+          ...remote,
+          secrets: buildSecretsPayload(),
+          reason: reason.startsWith('other:') ? 'other' : reason,
+          custom_reason: reason.startsWith('other:') ? reason.slice(6) : undefined,
+        });
+      } catch {
+        reportBlockAndExit();
+        return;
+      }
     }
     setTimeout(() => exit(), 100);
   }
