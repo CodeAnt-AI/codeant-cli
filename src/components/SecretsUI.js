@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput } from 'ink';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -325,4 +325,90 @@ export function renderDone(secrets, startTime, fileCount, meta) {
   return React.createElement(
     Box, { flexDirection: 'column', paddingX: 1, paddingY: 1 }, ...els,
   );
+}
+
+
+// ── Bypass Prompt ───────────────────────────────────────────────────────────
+
+function BypassPrompt({ secrets, onSelect }) {
+  const [selected, setSelected] = React.useState(0);
+  const [mode, setMode] = React.useState('menu'); // 'menu' | 'typing'
+  const [customReason, setCustomReason] = React.useState('');
+  const allSecrets = secrets.flatMap(file =>
+    file.secrets.map(s => ({ ...s, file_path: file.file_path }))
+  );
+
+  const options = [
+    { label: "It's a false positive", value: 'false_positive' },
+    { label: "It's used in tests", value: 'used_in_tests' },
+    { label: "I'll fix it later", value: 'fix_later' },
+    { label: 'Other (type your reason)', value: 'other' },
+    { label: 'Cancel \u2014 block this push', value: 'cancel' },
+  ];
+
+  useInput((input, key) => {
+    if (mode === 'menu') {
+      if (key.upArrow) {
+        setSelected(s => (s - 1 + options.length) % options.length);
+      } else if (key.downArrow) {
+        setSelected(s => (s + 1) % options.length);
+      } else if (key.return) {
+        if (options[selected].value === 'other') {
+          setMode('typing');
+        } else {
+          onSelect(options[selected].value);
+        }
+      }
+    } else {
+      // typing mode
+      if (key.return) {
+        const reason = customReason.trim();
+        if (reason) {
+          onSelect('other:' + reason);
+        }
+      } else if (key.escape) {
+        setMode('menu');
+        setCustomReason('');
+      } else if (key.backspace || key.delete) {
+        setCustomReason(s => s.slice(0, -1));
+      } else if (input && !key.ctrl && !key.meta) {
+        setCustomReason(s => s + input);
+      }
+    }
+  });
+
+  const els = [];
+  els.push(React.createElement(Text, { key: 'div-top', color: 'gray', dimColor: true }, DIVIDER));
+  els.push(React.createElement(
+    Text, { key: 'title', color: 'yellow', bold: true },
+    `${allSecrets.length} secret(s) detected. Select an action:`,
+  ));
+  els.push(React.createElement(Text, { key: 'sp' }, ''));
+
+  if (mode === 'menu') {
+    options.forEach((opt, i) => {
+      const prefix = i === selected ? '> ' : '  ';
+      const color = i === selected ? 'cyan' : 'white';
+      els.push(React.createElement(
+        Text, { key: `opt-${i}`, color, bold: i === selected },
+        `${prefix}${opt.label}`,
+      ));
+    });
+  } else {
+    els.push(React.createElement(Text, { key: 'typing-label', color: 'cyan' }, '  Type your reason (Enter to submit, Esc to go back):'));
+    els.push(React.createElement(Text, { key: 'typing-sp' }, ''));
+    els.push(React.createElement(
+      Text, { key: 'typing-input', color: 'white' },
+      `  > ${customReason}\u2588`,
+    ));
+  }
+
+  els.push(React.createElement(Text, { key: 'sp2' }, ''));
+  els.push(React.createElement(Text, { key: 'div-bot', color: 'gray', dimColor: true }, DIVIDER));
+
+  return React.createElement(Box, { flexDirection: 'column', paddingX: 1, paddingY: 1 }, ...els);
+}
+
+export function renderBypassPrompt(secrets, onSelect) {
+  return React.createElement(BypassPrompt, { secrets, onSelect });
 }

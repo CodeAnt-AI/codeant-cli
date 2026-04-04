@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.3.9] - 04/04/2026
+- Secrets bypass
+
 ## [0.3.8] - 03/04/2026
 - Graceful handling of review
 
