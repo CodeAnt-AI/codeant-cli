@@ -185,10 +185,7 @@ describe('Secrets detection e2e tests', () => {
 
       const result = await scanSecrets('staged-only');
 
-      const highConfidenceSecrets = result.secretsDetected.flatMap(f =>
-        f.secrets.filter(s => s.confidence_score?.toUpperCase() === 'HIGH')
-      );
-      expect(highConfidenceSecrets).toHaveLength(0);
+      expect(result.secretsDetected.flatMap(f => f.secrets)).toHaveLength(0);
     }, 30000);
 
     it('no secrets in placeholder/example values', async () => {
@@ -205,10 +202,7 @@ describe('Secrets detection e2e tests', () => {
 
       const result = await scanSecrets('staged-only');
 
-      const highConfidenceSecrets = result.secretsDetected.flatMap(f =>
-        f.secrets.filter(s => s.confidence_score?.toUpperCase() === 'HIGH')
-      );
-      expect(highConfidenceSecrets).toHaveLength(0);
+      expect(result.secretsDetected.flatMap(f => f.secrets)).toHaveLength(0);
     }, 30000);
   });
 
@@ -377,7 +371,6 @@ describe('Secrets detection e2e tests', () => {
       const secret = fileResult.secrets[0];
       expect(secret).toHaveProperty('type');
       expect(secret).toHaveProperty('line_number');
-      expect(secret).toHaveProperty('confidence_score');
     }, 30000);
 
     it('returns empty secretsDetected for no-files scan', async () => {

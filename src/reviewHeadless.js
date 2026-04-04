@@ -126,9 +126,9 @@ export async function runReviewHeadless(options = {}) {
 
     onProgress(`Analyzing ${perFileRequests.length} file${perFileRequests.length !== 1 ? 's' : ''} in parallel...`);
 
-    // ── Per-file agent turn loops (parallel) ────────────────────────────
+    // ── Per-file agent turn loops (parallel, fault-tolerant) ─────────────
     const perFileResults = await Promise.all(
-      perFileRequests.map((fileReq) => {
+      perFileRequests.map(async (fileReq) => {
         const filename = fileReq._filename;
         delete fileReq._filename;
 
@@ -138,7 +138,15 @@ export async function runReviewHeadless(options = {}) {
         }
         delete fileReq.file_contents;
 
-        return runTurnLoop(fileReq, gitRoot, false);
+        try {
+          onProgress(`Reviewing ${filename}...`);
+          const result = await runTurnLoop(fileReq, gitRoot, false);
+          onProgress(`Done reviewing ${filename}`);
+          return result;
+        } catch (err) {
+          console.error(`[error] Failed to review ${filename}: ${err.message}`);
+          return { finalMessage: null, finalOutput: null };
+        }
       })
     );
 
@@ -149,20 +157,26 @@ export async function runReviewHeadless(options = {}) {
       output: perFileResults[i].finalOutput,
     })).filter(r => r.output?.code_suggestions?.length > 0);
 
-    // ── Per-file reflector loops (parallel) ──────────────────────────────
-    onProgress('Running reflector...');
+    onProgress(`${perFileWithSuggestions.length} file(s) have suggestions, running reflector...`);
+
+    // ── Per-file reflector loops (parallel, fault-tolerant) ──────────────
     const reflectorResults = await Promise.all(
-      perFileWithSuggestions.map(({ diff_content, suggestions }) =>
-        runTurnLoop(
-          {
-            diff_content,
-            prompt_template_name: 'reflector',
-            extra_variables: { suggestion_str: suggestions },
-          },
-          gitRoot,
-          true
-        )
-      )
+      perFileWithSuggestions.map(async ({ diff_content, suggestions }, i) => {
+        try {
+          return await runTurnLoop(
+            {
+              diff_content,
+              prompt_template_name: 'reflector',
+              extra_variables: { suggestion_str: suggestions },
+            },
+            gitRoot,
+            true
+          );
+        } catch (err) {
+          console.error(`[error] Reflector failed for file ${i}: ${err.message}`);
+          return { finalMessage: null, finalOutput: null };
+        }
+      })
     );
 
     // ── Parse results ───────────────────────────────────────────────────

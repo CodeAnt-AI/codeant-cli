@@ -11,7 +11,7 @@ import {
   renderDone,
 } from '../components/SecretsUI.js';
 
-export default function Secrets({ scanType = 'all', failOn = 'CRITICAL', include = [], exclude = [], lastNCommits = 1, baseBranch = null, baseCommit = null }) {
+export default function Secrets({ scanType = 'all', include = [], exclude = [], lastNCommits = 1, baseBranch = null, baseCommit = null }) {
   const { exit } = useApp();
   const [status, setStatus] = useState('initializing');
   const [secrets, setSecrets] = useState([]);
@@ -19,14 +19,6 @@ export default function Secrets({ scanType = 'all', failOn = 'CRITICAL', include
   const [fileCount, setFileCount] = useState(0);
   const [scanMeta, setScanMeta] = useState(null);
   const [startTime] = useState(() => Date.now());
-
-  const shouldFailOn = (confidenceScore) => {
-    const score = confidenceScore?.toUpperCase();
-    if (score === 'FALSE_POSITIVE') return false;
-    if (failOn === 'HIGH') return score === 'HIGH';
-    if (failOn === 'MEDIUM') return score === 'HIGH' || score === 'MEDIUM';
-    return true;
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -81,10 +73,10 @@ export default function Secrets({ scanType = 'all', failOn = 'CRITICAL', include
 
   useEffect(() => {
     if (status === 'done') {
-      const hasBlockingSecrets = secrets.some(file =>
-        file.secrets.some(secret => shouldFailOn(secret.confidence_score))
+      const hasSecrets = secrets.some(file =>
+        file.secrets.length > 0
       );
-      if (hasBlockingSecrets) {
+      if (hasSecrets) {
         setTimeout(() => { process.exitCode = 1; exit(new Error('Secrets detected')); }, 100);
       } else {
         setTimeout(() => exit(), 100);
@@ -101,7 +93,7 @@ export default function Secrets({ scanType = 'all', failOn = 'CRITICAL', include
   if (status === 'scanning') return renderScanning(startTime, fileCount, scanMeta);
   if (status === 'no_files') return renderNoFiles(scanType, lastNCommits, baseBranch, baseCommit);
   if (status === 'error') return renderError(error);
-  if (status === 'done') return renderDone(secrets, failOn, shouldFailOn, startTime, fileCount, scanMeta);
+  if (status === 'done') return renderDone(secrets, startTime, fileCount, scanMeta);
 
   return null;
 }

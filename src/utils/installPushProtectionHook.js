@@ -3,31 +3,28 @@ import { readFileSync, writeFileSync, chmodSync, existsSync, unlinkSync, mkdirSy
 import path from 'path';
 
 const HOOK_MARKER = '# codeant-push-protection';
+const HOOK_MARKER_END = '# end-codeant-push-protection';
 
 /**
  * Build the full pre-push hook script (with shebang).
- * @param {string} failOn - Severity threshold (e.g. "HIGH", "CRITICAL")
  */
-function buildHookScript(failOn = 'HIGH') {
+function buildHookScript() {
   return `#!/bin/sh
-${buildHookBlock(failOn)}
+${buildHookBlock()}
 `;
 }
 
 /**
  * Build just the CodeAnt block (no shebang), used when appending to an existing hook.
- * @param {string} failOn - Severity threshold
  */
-function buildHookBlock(failOn = 'HIGH') {
+function buildHookBlock() {
   return `${HOOK_MARKER}
 # Auto-installed by CodeAnt AI — blocks pushes containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 command -v codeant >/dev/null 2>&1 || exit 0
-codeant secrets --committed --fail-on ${failOn}
+codeant secrets --committed
 ${HOOK_MARKER_END}`;
 }
-
-const HOOK_MARKER_END = '# end-codeant-push-protection';
 
 /**
  * Replace the CodeAnt block in a hook file with new content (or remove it).
@@ -37,7 +34,6 @@ function replaceCodeAntBlock(fileContent, newBlock) {
   let endIdx = fileContent.indexOf(HOOK_MARKER_END);
   if (startIdx === -1) return fileContent;
   if (endIdx === -1) {
-    // Legacy hook without end marker — remove from start marker to EOF
     endIdx = fileContent.length;
   } else {
     endIdx += HOOK_MARKER_END.length;
@@ -85,13 +81,9 @@ function getHooksDir(gitRoot) {
  * Install a pre-push hook that runs secret scanning before push.
  *
  * @param {string} workspacePath - Path to the git repository
- * @param {object} [options]
- * @param {string} [options.failOn="HIGH"] - Severity threshold
  * @returns {{ installed: boolean, hookPath: string|null, message: string }}
  */
-export function installPushProtectionHook(workspacePath, options = {}) {
-  const { failOn = 'HIGH' } = options;
-
+export function installPushProtectionHook(workspacePath) {
   const gitRoot = findGitRoot(workspacePath);
   if (!gitRoot) {
     return { installed: false, hookPath: null, message: 'Not a git repository' };
@@ -108,19 +100,24 @@ export function installPushProtectionHook(workspacePath, options = {}) {
     const existing = readFileSync(hookPath, 'utf-8');
     if (existing.includes(HOOK_MARKER)) {
       // Replace only our block, preserve everything else
-      const updated = replaceCodeAntBlock(existing, buildHookBlock(failOn));
+      const updated = replaceCodeAntBlock(existing, buildHookBlock());
       writeFileSync(hookPath, updated, 'utf-8');
       chmodSync(hookPath, 0o755);
       return { installed: true, hookPath, message: 'Hook updated' };
     }
-    // There's a user-managed hook — append our block (no duplicate shebang)
-    const appended = existing.trimEnd() + '\n\n' + buildHookBlock(failOn) + '\n';
+    // There's a user-managed hook — append only for shell hooks to avoid breaking non-shell scripts
+    const firstLine = existing.split('\n', 1)[0] || '';
+    const isShellHook = firstLine.startsWith('#!') ? /\/(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
+    if (!isShellHook) {
+      return { installed: false, hookPath, message: 'Existing pre-push hook is non-shell; cannot append CodeAnt block safely' };
+    }
+    const appended = existing.trimEnd() + '\n\n' + buildHookBlock() + '\n';
     writeFileSync(hookPath, appended, 'utf-8');
     chmodSync(hookPath, 0o755);
     return { installed: true, hookPath, message: 'Hook appended to existing pre-push' };
   }
 
-  writeFileSync(hookPath, buildHookScript(failOn), 'utf-8');
+  writeFileSync(hookPath, buildHookScript(), 'utf-8');
   chmodSync(hookPath, 0o755);
   return { installed: true, hookPath, message: 'Hook installed' };
 }
@@ -152,7 +149,6 @@ export function removePushProtectionHook(workspacePath) {
   // Remove our block (between start and end markers)
   const remaining = replaceCodeAntBlock(content, '').trim();
   if (!remaining || remaining === '#!/bin/sh') {
-    // Nothing left — delete the file
     unlinkSync(hookPath);
     return { removed: true, message: 'Hook removed' };
   }
