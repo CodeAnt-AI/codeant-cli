@@ -8,16 +8,30 @@ const HOOK_MARKER_END = '# end-codeant-push-protection';
 /**
  * Build the full pre-push hook script (with shebang).
  */
-function buildHookScript() {
+function buildHookScript(cliPath) {
   return `#!/bin/sh
-${buildHookBlock()}
+${buildHookBlock(cliPath)}
 `;
 }
 
 /**
  * Build just the CodeAnt block (no shebang), used when appending to an existing hook.
+ * If cliPath is provided, uses the absolute path to the extension-bundled CLI via node.
+ * Otherwise falls back to the global `codeant` command.
  */
-function buildHookBlock() {
+function buildHookBlock(cliPath) {
+  if (cliPath) {
+    return `${HOOK_MARKER}
+# Auto-installed by CodeAnt AI — blocks pushes containing secrets.
+# To disable: delete this hook or run "codeant push-protection disable"
+# Uses the CLI bundled with the VS Code extension.
+if [ -f "${cliPath}" ]; then
+  node "${cliPath}" secrets --committed --hook
+else
+  command -v codeant >/dev/null 2>&1 && codeant secrets --committed --hook
+fi
+${HOOK_MARKER_END}`;
+  }
   return `${HOOK_MARKER}
 # Auto-installed by CodeAnt AI — blocks pushes containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
@@ -81,9 +95,10 @@ function getHooksDir(gitRoot) {
  * Install a pre-push hook that runs secret scanning before push.
  *
  * @param {string} workspacePath - Path to the git repository
+ * @param {string} [cliPath] - Absolute path to the codeant CLI entry point (from extension node_modules)
  * @returns {{ installed: boolean, hookPath: string|null, message: string }}
  */
-export function installPushProtectionHook(workspacePath) {
+export function installPushProtectionHook(workspacePath, cliPath) {
   const gitRoot = findGitRoot(workspacePath);
   if (!gitRoot) {
     return { installed: false, hookPath: null, message: 'Not a git repository' };
@@ -100,7 +115,7 @@ export function installPushProtectionHook(workspacePath) {
     const existing = readFileSync(hookPath, 'utf-8');
     if (existing.includes(HOOK_MARKER)) {
       // Replace only our block, preserve everything else
-      const updated = replaceCodeAntBlock(existing, buildHookBlock());
+      const updated = replaceCodeAntBlock(existing, buildHookBlock(cliPath));
       writeFileSync(hookPath, updated, 'utf-8');
       chmodSync(hookPath, 0o755);
       return { installed: true, hookPath, message: 'Hook updated' };
@@ -111,13 +126,13 @@ export function installPushProtectionHook(workspacePath) {
     if (!isShellHook) {
       return { installed: false, hookPath, message: 'Existing pre-push hook is non-shell; cannot append CodeAnt block safely' };
     }
-    const appended = existing.trimEnd() + '\n\n' + buildHookBlock() + '\n';
+    const appended = existing.trimEnd() + '\n\n' + buildHookBlock(cliPath) + '\n';
     writeFileSync(hookPath, appended, 'utf-8');
     chmodSync(hookPath, 0o755);
     return { installed: true, hookPath, message: 'Hook appended to existing pre-push' };
   }
 
-  writeFileSync(hookPath, buildHookScript(), 'utf-8');
+  writeFileSync(hookPath, buildHookScript(cliPath), 'utf-8');
   chmodSync(hookPath, 0o755);
   return { installed: true, hookPath, message: 'Hook installed' };
 }
