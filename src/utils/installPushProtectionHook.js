@@ -28,7 +28,8 @@ function buildHookBlock(cliPath) {
 if [ -f "${cliPath}" ]; then
   node "${cliPath}" secrets --committed --hook
 else
-  command -v codeant >/dev/null 2>&1 && codeant secrets --committed --hook
+  command -v codeant >/dev/null 2>&1 || exit 0
+  codeant secrets --committed --hook
 fi
 ${HOOK_MARKER_END}`;
   }
