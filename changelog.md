@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.3] - 06/04/2026
+- Interactive terminal for pre-push
+
 ## [0.4.2] - 06/04/2026
 - Dynamic config
 
