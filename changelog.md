@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.2] - 06/04/2026
+- Dynamic config
+
 ## [0.4.1] - 06/04/2026
 - CLI path
 
