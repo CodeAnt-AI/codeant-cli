@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Code review CLI tool",
   "type": "module",
   "bin": {
@@ -26,7 +26,8 @@
   "exports": {
     ".": "./src/reviewHeadless.js",
     "./review": "./src/reviewHeadless.js",
-    "./push-protection": "./src/utils/installPushProtectionHook.js"
+    "./push-protection": "./src/utils/installPushProtectionHook.js",
+    "./config": "./src/utils/config.js"
   },
   "files": [
     "src"
