@@ -28,7 +28,7 @@ function buildHookBlock(cliPath) {
 # Reopen stdin from terminal so the CLI can show an interactive bypass prompt.
 # In non-interactive environments (CI), this silently fails and the push is blocked.
 exec < /dev/tty 2>/dev/null || true
-if [ -f "${cliPath}" ]; then
+if [ -f "${cliPath}" ] && command -v node >/dev/null 2>&1; then
   node "${cliPath}" secrets --committed --hook
 else
   command -v codeant >/dev/null 2>&1 || exit 0
