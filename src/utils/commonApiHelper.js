@@ -61,6 +61,19 @@ class CommonApiHelper {
   }
 
   /**
+   * Get specific selected commits formatted for the API
+   * @param {string[]} commits - Array of commit hashes to include
+   */
+  async getSelectCommitsFilesForApi(commits = []) {
+    const diffs = await this.gitHelper.getDiffBasedOnReviewConfig({
+      type: 'select-commits',
+      commits,
+    });
+
+    return this._transformDiffsToApiFormat(diffs);
+  }
+
+  /**
    * Transform diff info array to API format
    * Must be implemented by subclasses
    */
@@ -126,6 +139,8 @@ class CommonApiHelper {
         return await this.getLastCommitFilesForApi();
       case 'last-n-commits':
         return await this.getLastNCommitsFilesForApi(options.lastNCommits || 1);
+      case 'select-commits':
+        return await this.getSelectCommitsFilesForApi(options.selectedCommits || []);
       case 'base-branch':
         return await this.getBaseBranchDiffForApi(options.baseBranch);
       case 'base-commit':
