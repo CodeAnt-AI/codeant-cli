@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.4] - 09/04/2026
+- Secrets location in hooks
+
 ## [0.4.3] - 06/04/2026
 - Interactive terminal for pre-push
 
