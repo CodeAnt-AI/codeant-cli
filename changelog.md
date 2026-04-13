@@ -1,7 +1,11 @@
 # Changelog
 
-## [0.4.4] - 09/05/2026
+
+## [0.4.4] - 13/04/2026
 - Selected commits review
+
+## [0.4.4] - 09/04/2026
+- Secrets location in hooks
 
 ## [0.4.3] - 06/04/2026
 - Interactive terminal for pre-push

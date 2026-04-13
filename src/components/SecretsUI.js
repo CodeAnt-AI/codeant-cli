@@ -381,7 +381,41 @@ function BypassPrompt({ secrets, onSelect }) {
   els.push(React.createElement(Text, { key: 'div-top', color: 'gray', dimColor: true }, DIVIDER));
   els.push(React.createElement(
     Text, { key: 'title', color: 'yellow', bold: true },
-    `${allSecrets.length} secret(s) detected. Select an action:`,
+    `${allSecrets.length} secret(s) detected:`,
+  ));
+  els.push(React.createElement(Text, { key: 'sp-list' }, ''));
+
+  // Group by file and list each secret with line + type
+  const grouped = {};
+  allSecrets.forEach(s => {
+    const file = s.file_path || 'Unknown';
+    (grouped[file] ??= []).push(s);
+  });
+  const sortedFiles = Object.keys(grouped).sort();
+  sortedFiles.forEach(f =>
+    grouped[f].sort((a, b) => (a.line_number || 0) - (b.line_number || 0))
+  );
+  sortedFiles.forEach((file, fi) => {
+    const fileSecrets = grouped[file];
+    els.push(React.createElement(
+      Text, { key: `bp-f-${fi}`, color: 'white', bold: true }, `  ${file}`,
+    ));
+    fileSecrets.forEach((secret, si) => {
+      const isLast = si === fileSecrets.length - 1;
+      const branch = isLast ? '└─' : '├─';
+      const lineStr = secret.line_number ? `L${secret.line_number}` : '';
+      els.push(React.createElement(
+        Box, { key: `bp-s-${fi}-${si}` },
+        React.createElement(Text, { color: 'gray' }, `    ${branch} `),
+        React.createElement(Text, { color: 'gray' }, padEnd(lineStr, 6)),
+        React.createElement(Text, { color: 'white' }, secret.type || ''),
+      ));
+    });
+  });
+
+  els.push(React.createElement(Text, { key: 'sp-action' }, ''));
+  els.push(React.createElement(
+    Text, { key: 'action-label', color: 'yellow', bold: true }, 'Select an action:',
   ));
   els.push(React.createElement(Text, { key: 'sp' }, ''));
 
