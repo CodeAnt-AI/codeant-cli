@@ -82,6 +82,7 @@ export async function runReviewHeadless(options = {}) {
     lastNCommits = 1,
     baseBranch = null,
     baseCommit = null,
+    selectedCommits = [],
     onProgress = () => {},
     onFilesReady = () => {},
   } = options;
@@ -108,7 +109,7 @@ export async function runReviewHeadless(options = {}) {
     const helper = new ReviewApiHelper(workspacePath);
     await helper.init();
     const gitRoot = helper.getGitRoot() || workspacePath;
-    const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit });
+    const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit, selectedCommits });
 
     const meta = requestBody?._meta || null;
     delete requestBody._meta;
