@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.4.6] - 17/04/2026
+- Secrets false positive
 
 ## [0.4.5] - 13/04/2026
 - Selected commits review
