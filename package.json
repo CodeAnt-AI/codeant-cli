@@ -27,7 +27,13 @@
     ".": "./src/reviewHeadless.js",
     "./review": "./src/reviewHeadless.js",
     "./push-protection": "./src/utils/installPushProtectionHook.js",
-    "./config": "./src/utils/config.js"
+    "./config": "./src/utils/config.js",
+    "./scans/connection": "./src/scans/connectionHandler.js",
+    "./scans/list-repos": "./src/scans/listRepos.js",
+    "./scans/scan-history": "./src/scans/getScanHistory.js",
+    "./scans/fetch-results": "./src/scans/fetchScanResults.js",
+    "./scans/fetch-advanced-results": "./src/scans/fetchAdvancedScanResults.js",
+    "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js"
   },
   "files": [
     "src"
