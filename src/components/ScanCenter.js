@@ -222,7 +222,7 @@ export default function ScanCenter() {
       return;
     }
     const history = res.scanHistory || [];
-    process.stderr.write('SCAN_HISTORY_SAMPLE: ' + JSON.stringify(history.slice(0, 3), null, 2) + '\n');
+    process.stderr.write('SCAN_HISTORY_SAMPLE: ' + JSON.stringify(history.slice(0, 15), null, 2) + '\n');
     setScanHistory(history);
     setStep(STEPS.SELECT_SCAN);
   };
@@ -334,19 +334,23 @@ export default function ScanCenter() {
 
   if (step === STEPS.SELECT_SCAN) {
     const items = scanHistory
-      .map((s, i) => {
-        if (!s || typeof s !== 'object') return null;
-        const date = s.date || s.created_at || s.timestamp;
+      .filter((s) => s && typeof s === 'object' && s.latest_commit_sha)
+      .slice()
+      .sort((a, b) => {
+        const da = new Date(a.timestamp || a.date || a.created_at || 0);
+        const db = new Date(b.timestamp || b.date || b.created_at || 0);
+        return db - da;
+      })
+      .map((s) => {
+        const date = s.timestamp || s.date || s.created_at;
         const branch = s.branch || s.ref || '';
-        const commitFull = s.commit_id || s.commitId || '';
-        const commit = commitFull.slice(0, 8);
+        const commitFull = s.latest_commit_sha || '';
         return {
-          label: (commit || `scan-${i + 1}`) + (branch ? '  ' + branch : ''),
-          sublabel: [commitFull, date ? new Date(date).toLocaleString() : null].filter(Boolean).join('   '),
+          label: branch || '(no branch)',
+          sublabel: [commitFull || null, date ? new Date(date).toLocaleString() : null].filter(Boolean).join('   '),
           value: { ...s, commitId: commitFull },
         };
-      })
-      .filter(Boolean);
+      });
     return ce(
       Box,
       { flexDirection: 'column' },
