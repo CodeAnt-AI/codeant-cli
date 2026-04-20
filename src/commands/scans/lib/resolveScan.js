@@ -30,9 +30,9 @@ export async function resolveScan({ repo, scan, branch }) {
   const { success, scanHistory, error } = await getScanHistory(repo);
   if (!success) throw withExitCode(1, `scan history: ${error}`);
 
-  const sorted = [...(scanHistory ?? [])].sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-  );
+  const sorted = [...(scanHistory ?? [])]
+    .filter((s) => s.latest_commit_sha && s.timestamp)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   const filtered = branch ? sorted.filter((s) => s.branch === branch) : sorted;
   const pick = filtered[0];
 
