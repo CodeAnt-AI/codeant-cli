@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import SelectList from './SelectList.js';
-import { validateConnection } from '../scans/connectionHandler.js';
-import { listRepos } from '../scans/listRepos.js';
-import { getScanHistory } from '../scans/getScanHistory.js';
-import { fetchScanResults } from '../scans/fetchScanResults.js';
-import { fetchAdvancedScanResults } from '../scans/fetchAdvancedScanResults.js';
-import { fetchDismissedAlerts } from '../scans/fetchDismissedAlerts.js';
+import { validateConnectionOnMount } from '../scanCenter/validateConnectionOnMount.js';
+import { handleSelectConnection as _handleSelectConnection } from '../scanCenter/handleSelectConnection.js';
+import { handleSelectRepo as _handleSelectRepo } from '../scanCenter/handleSelectRepo.js';
+import { handleSelectScan as _handleSelectScan } from '../scanCenter/handleSelectScan.js';
+import { handleSelectResultType as _handleSelectResultType } from '../scanCenter/handleSelectResultType.js';
 
 const ce = React.createElement;
 
@@ -182,88 +181,24 @@ export default function ScanCenter() {
 
   // ── Step 1: validate connection on mount ──
   useEffect(() => {
-    (async () => {
-      const res = await validateConnection();
-      if (!res.success) {
-        setError(res.error || 'Failed to validate connection', null);
-        return;
-      }
-      if (!res.connections || res.connections.length === 0) {
-        setError('No connected organisations found. Please log in to CodeAnt first.', null);
-        return;
-      }
-      setConnections(res.connections);
-      setStep(STEPS.SELECT_CONNECTION);
-    })();
+    validateConnectionOnMount({ STEPS, setError, setConnections, setStep });
   }, []);
 
   // ── Step 2: connection selected → fetch repos ──
-  const handleSelectConnection = async (item) => {
-    setSelectedConnection(item.value);
-    setStep(STEPS.LOADING);
-    setLoadingMsg(`Fetching repos for ${item.value.organizationName}…`);
-    const res = await listRepos(item.value.organizationName);
-    if (!res.success) {
-      setError(res.error || 'Failed to fetch repos', STEPS.SELECT_CONNECTION);
-      return;
-    }
-    setRepos(res.repos || []);
-    setStep(STEPS.SELECT_REPO);
-  };
+  const handleSelectConnection = (item) =>
+    _handleSelectConnection({ STEPS, item, setSelectedConnection, setStep, setLoadingMsg, setError, setRepos });
 
   // ── Step 3: repo selected → fetch scan history ──
-  const handleSelectRepo = async (item) => {
-    setSelectedRepo(item.value);
-    setStep(STEPS.LOADING);
-    setLoadingMsg(`Loading scan history for ${item.value.full_name}…`);
-    const res = await getScanHistory(item.value.full_name);
-    if (!res.success) {
-      setError(res.error || 'Failed to fetch scan history', STEPS.SELECT_REPO);
-      return;
-    }
-    const history = res.scanHistory || [];
-    process.stderr.write('SCAN_HISTORY_SAMPLE: ' + JSON.stringify(history.slice(0, 15), null, 2) + '\n');
-    setScanHistory(history);
-    setStep(STEPS.SELECT_SCAN);
-  };
+  const handleSelectRepo = (item) =>
+    _handleSelectRepo({ STEPS, item, setSelectedRepo, setStep, setLoadingMsg, setError, setScanHistory });
 
   // ── Step 4: scan selected → show result type menu ──
-  const handleSelectScan = (item) => {
-    setSelectedScan(item.value);
-    setStep(STEPS.SELECT_RESULT_TYPE);
-  };
+  const handleSelectScan = (item) =>
+    _handleSelectScan({ STEPS, item, setSelectedScan, setStep });
 
   // ── Step 5: result type selected → fetch exactly one endpoint ──
-  const handleSelectResultType = async (item) => {
-    const rt = item.value;
-    setSelectedResultType(rt);
-    setStep(STEPS.LOADING);
-    setLoadingMsg(`Fetching ${item.label}…`);
-
-    const repo = selectedRepo.full_name;
-    const commitId = selectedScan.commitId;
-    let res;
-
-    if (rt.kind === 'basic') {
-      res = await fetchScanResults(repo, commitId, rt.value);
-    } else if (rt.kind === 'advanced') {
-      res = await fetchAdvancedScanResults(repo, commitId, rt.value);
-    } else if (rt.value === 'dismissed_alerts') {
-      const r = await fetchDismissedAlerts(repo, 'security');
-      res = r.success ? { success: true, issues: r.dismissedAlerts } : r;
-    } else if (rt.value === 'dismissed_secrets') {
-      const r = await fetchDismissedAlerts(repo, 'secrets');
-      res = r.success ? { success: true, issues: r.dismissedAlerts } : r;
-    }
-
-    if (!res || !res.success) {
-      setError((res && res.error) || 'Failed to fetch results', STEPS.SELECT_RESULT_TYPE);
-      return;
-    }
-
-    setResults(res);
-    setStep(STEPS.SHOWING_RESULTS);
-  };
+  const handleSelectResultType = (item) =>
+    _handleSelectResultType({ STEPS, item, selectedRepo, selectedScan, setSelectedResultType, setStep, setLoadingMsg, setError, setResults });
 
   // ── Back navigation ──
   const goBack = {
