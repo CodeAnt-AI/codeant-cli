@@ -18,6 +18,7 @@ import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
 import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
+import registerScansCommands from './commands/scans/index.js';
 
 // Read version from package.json
 const require = createRequire(import.meta.url);
@@ -383,6 +384,9 @@ program
         createdAfter: opts.createdAfter,
       }));
     });
+
+  // ─── Scans commands ───
+  registerScansCommands(program, { runCmd });
 
   // ─── Telemetry control ───
   program
