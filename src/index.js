@@ -13,6 +13,7 @@ import Login from './commands/login.js';
 import Logout from './commands/logout.js';
 import Review from './commands/review.js';
 import { runReviewHeadless } from './reviewHeadless.js';
+import ScanCenter from './components/ScanCenter.js';
 import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
@@ -204,6 +205,13 @@ program
     .description('Login to CodeAnt')
     .action(() => {
       render(React.createElement(Login));
+    });
+
+  program
+    .command('scan-center')
+    .description('Browse scan results interactively')
+    .action(() => {
+      render(React.createElement(ScanCenter));
     });
 
   program
