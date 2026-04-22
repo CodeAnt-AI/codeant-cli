@@ -6,8 +6,8 @@
  */
 export function paginate(findings, { limit = 100, offset = 0 } = {}) {
   const total = findings.length;
-  const safeOffset = Math.max(0, offset);
-  const safeLimit = limit > 0 ? limit : total;
+  const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.trunc(offset)) : 0;
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 100;
   const items = findings.slice(safeOffset, safeOffset + safeLimit);
   return {
     items,

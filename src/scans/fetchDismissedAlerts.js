@@ -36,9 +36,7 @@ export async function fetchDismissedAlerts(repo, analysisType = 'security') {
       const part1 = parts[1] || '';
       const part2 = parts[2] || '';
 
-      if (file_path.endsWith('/security_issues.json')) {
-        file_path = file_path.replace('/security_issues.json', '');
-      }
+      file_path = file_path.replace(/\/(security_issues|anti_patterns|docstring|complex_functions)\.json$/, '');
 
       dismissedAlerts.push({
         file_path,
@@ -47,8 +45,8 @@ export async function fetchDismissedAlerts(repo, analysisType = 'security') {
         line_number: parseInt(part1, 10) || 0,
         type: part2,
         issue_key: issueKey,
-        reason_for_dismiss: dismissInfo.reason_for_dismiss || '',
-        comment_for_dismiss: dismissInfo.comment_for_dismiss || '',
+        reason_for_dismiss: dismissInfo?.reason_for_dismiss || '',
+        comment_for_dismiss: dismissInfo?.comment_for_dismiss || '',
       });
     }
 

@@ -112,7 +112,7 @@ function ResultsView({ issues, resultTypeLabel, breadcrumbParts, onBack }) {
             ce(Text, { color: 'gray' },
               (issue.file_path || 'unknown') + (issue.line_number ? `:${issue.line_number}` : '')),
             ce(Text, null,
-              issue.check_name || issue.issue_text || issue.message || '')
+              issue.check_name || issue.issue_text || issue.message || issue.test_id || issue.type || issue.reason_for_dismiss || 'Dismissed finding')
           )
         ),
       ];

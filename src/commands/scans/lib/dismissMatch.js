@@ -20,7 +20,7 @@ export function findDismissMatch(finding, dismissedAlerts) {
     if (d.test_id && finding.check_id && d.test_id !== finding.check_id) continue;
 
     // Line number match when available (secrets format uses line_number as part1)
-    if (d.line_number && finding.line_number && d.line_number !== finding.line_number) continue;
+    if (d.line_number != null && finding.line_number != null && Number(d.line_number) !== Number(finding.line_number)) continue;
 
     return d;
   }

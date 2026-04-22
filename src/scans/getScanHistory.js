@@ -22,7 +22,7 @@ export async function getScanHistory(repo) {
     if (response.last_analysis_results !== undefined) {
       return {
         success: true,
-        repo: response.repo,
+        repo: response.repo || repo,
         scanHistory: response.last_analysis_results || [],
       };
     }

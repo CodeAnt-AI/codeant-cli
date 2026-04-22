@@ -22,7 +22,7 @@ export async function listRepos(organizationName) {
 
     if (response.repos) {
       const sortedRepos = (response.repos || []).sort(
-        (a, b) => new Date(b.pushed_at) - new Date(a.pushed_at)
+        (a, b) => (Date.parse(b.pushed_at) || 0) - (Date.parse(a.pushed_at) || 0)
       );
       return { success: true, repos: sortedRepos };
     }

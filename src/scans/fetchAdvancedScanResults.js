@@ -152,7 +152,10 @@ function normalizeAdvancedIssue(item, resultType) {
   const normalized = { ...item };
   normalized.file_path = extractRelativeFilePath(item.file_path || item.path || item.filename || 'unknown');
   normalized.line_number = item.line_number || item.start_line || item.line || 1;
-  normalized.file_line_range = [normalized.line_number];
+  normalized.file_line_range =
+    Array.isArray(item.file_line_range) && item.file_line_range.length > 0
+      ? item.file_line_range
+      : [normalized.line_number];
 
   switch (resultType) {
     case ADVANCED_RESULT_TYPES.SCA:
@@ -181,7 +184,7 @@ function normalizeAdvancedIssue(item, resultType) {
       break;
     case ADVANCED_RESULT_TYPES.DEAD_CODE:
       normalized.check_name =
-        item.name || item.function_name || item.symbol_name || item.description || 'Unused code detected';
+        item.check_name || item.name || item.function_name || item.symbol_name || item.description || 'Unused code detected';
       normalized.severity = item.severity || 'low';
       break;
     default:
@@ -293,7 +296,7 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType) {
 
     // Filter secrets false positives
     if (resultType === ADVANCED_RESULT_TYPES.SECRETS) {
-      issues = issues.filter((issue) => issue.confidence_score?.toLowerCase() !== 'false_positive');
+      issues = issues.filter((issue) => String(issue.confidence_score || '').toLowerCase() !== 'false_positive');
     }
 
     if (resultType === ADVANCED_RESULT_TYPES.SCA) {
