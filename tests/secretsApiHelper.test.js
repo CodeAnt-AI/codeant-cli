@@ -188,6 +188,39 @@ describe('Secrets detection e2e tests', () => {
       expect(result.secretsDetected.flatMap(f => f.secrets)).toHaveLength(0);
     }, 30000);
 
+    it('no secrets in Python import statements with keyword-like variable names', async () => {
+      writeFile('src/app.py', [
+        'import time',
+        'from fastapi import Request',
+        'from api.config import STRIPE_API_KEY, STRIPE_PAYMENT_WEBHOOK_SECRET',
+        'from mangum import Mangum',
+        'from starlette.responses import JSONResponse',
+        ''
+      ].join('\n'));
+      git('add src/app.py');
+
+      const result = await scanSecrets('staged-only');
+
+      const pyFile = result.secretsDetected.find(f => f.file_path === 'src/app.py');
+      const pySecrets = pyFile ? pyFile.secrets : [];
+      expect(pySecrets).toHaveLength(0);
+    }, 30000);
+
+    it('no secrets in JS destructured imports with keyword-like names', async () => {
+      writeFile('src/config-loader.js', [
+        'const { API_KEY, SECRET_TOKEN, AUTH_CREDENTIAL } = require("./config");',
+        'module.exports = { API_KEY, SECRET_TOKEN, AUTH_CREDENTIAL };',
+        ''
+      ].join('\n'));
+      git('add src/config-loader.js');
+
+      const result = await scanSecrets('staged-only');
+
+      const jsFile = result.secretsDetected.find(f => f.file_path === 'src/config-loader.js');
+      const jsSecrets = jsFile ? jsFile.secrets : [];
+      expect(jsSecrets).toHaveLength(0);
+    }, 30000);
+
     it('no secrets in placeholder/example values', async () => {
       writeFile('src/config.example.js', [
         'module.exports = {',
