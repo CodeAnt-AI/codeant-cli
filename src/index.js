@@ -13,10 +13,12 @@ import Login from './commands/login.js';
 import Logout from './commands/logout.js';
 import Review from './commands/review.js';
 import { runReviewHeadless } from './reviewHeadless.js';
+import ScanCenter from './components/ScanCenter.js';
 import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
 import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
+import registerScansCommands from './commands/scans/index.js';
 
 // Read version from package.json
 const require = createRequire(import.meta.url);
@@ -207,6 +209,13 @@ program
     });
 
   program
+    .command('scan-center')
+    .description('Browse scan results interactively')
+    .action(() => {
+      render(React.createElement(ScanCenter));
+    });
+
+  program
     .command('logout')
     .description('Logout from CodeAnt')
     .action(() => {
@@ -375,6 +384,9 @@ program
         createdAfter: opts.createdAfter,
       }));
     });
+
+  // ─── Scans commands ───
+  registerScansCommands(program, { runCmd });
 
   // ─── Telemetry control ───
   program

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.7] - 22/05/2026
+- Scans center
+
 ## [0.4.6] - 17/04/2026
 - Secrets false positive
 
