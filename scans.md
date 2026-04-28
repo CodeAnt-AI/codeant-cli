@@ -217,3 +217,47 @@ codeant scans dismissed --repo acme/backend
 # List dismissed secrets alerts
 codeant scans dismissed --repo acme/backend --analysis-type secrets
 ```
+
+---
+
+### `scans start-scan`
+
+Trigger a new analysis run for a repository.
+
+```bash
+codeant scans start-scan [options]
+```
+
+All options are optional — `repo`, `branch`, and `commit` are auto-detected from the local git context when not provided.
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--repo <repo>` | Repository in `owner/repo` format (auto-detected from git remote) |
+| `--branch <name>` | Branch to scan (auto-detected from current checkout) |
+| `--commit <sha>` | Commit SHA to scan (resolved from remote HEAD of branch if omitted) |
+| `--include <paths>` | Comma-separated file path glob patterns to include |
+| `--exclude <paths>` | Comma-separated file path glob patterns to exclude |
+
+**Examples:**
+
+```bash
+# Zero-config — auto-detects repo, branch, and latest commit
+codeant scans start-scan
+
+# Explicit repo and branch
+codeant scans start-scan --repo CodeAnt-AI/codeant-cli --branch main
+
+# Explicit commit SHA
+codeant scans start-scan \
+  --repo CodeAnt-AI/codeant-cli \
+  --branch main \
+  --commit b509bffa1721da442f35a7ccab969822711a67f0
+
+# Scan only specific files
+codeant scans start-scan \
+  --branch main \
+  --include "src/main.py,src/utils.py" \
+  --exclude "tests/,*.md"
+```
