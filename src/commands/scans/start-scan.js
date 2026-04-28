@@ -1,9 +1,10 @@
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { detectRepoName } from '../../scm/index.js';
 import { startScan } from '../../scans/startScan.js';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Mirrors splitGlobs in src/index.js (not exported) — preserves commas inside {} brace expansions
 function splitGlobs(input) {
@@ -35,7 +36,7 @@ async function resolveCurrentBranch() {
 
 async function resolveRemoteCommit(branch) {
   try {
-    const { stdout } = await execAsync(`git ls-remote origin refs/heads/${branch}`);
+    const { stdout } = await execFileAsync('git', ['ls-remote', 'origin', `refs/heads/${branch}`]);
     const sha = stdout.trim().split(/\s+/)[0];
     if (!sha) {
       const err = new Error(`Branch "${branch}" not found on remote origin. Pass --commit <sha> explicitly.`);
