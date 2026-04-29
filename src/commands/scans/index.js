@@ -4,6 +4,7 @@ import { runHistory } from './history.js';
 import { runGet } from './get.js';
 import { runResults } from './results.js';
 import { runDismissed } from './dismissed.js';
+import { runStartScan } from './start-scan.js';
 import { setQuiet, setNoColor } from './lib/log.js';
 import { setNoColor as tableSetNoColor } from './formatters/table.js';
 
@@ -118,4 +119,28 @@ export default function registerScansCommands(program, { runCmd }) {
     .action((opts) =>
       runCmd(() => runDismissed({ repo: opts.repo, analysisType: opts.analysisType }))
     );
+
+  // ── start-scan ─────────────────────────────────────────────────────────────
+  scans
+    .command('start-scan')
+    .description('Trigger a new analysis run for a repository')
+    .option('--repo <repo>', 'Repository (owner/repo, auto-detected from git remote)')
+    .option('--branch <name>', 'Branch to scan (auto-detected from current checkout)')
+    .option('--commit <sha>', 'Commit SHA to scan (resolved from remote if omitted)')
+    .option('--include <paths>', 'Comma-separated file path glob patterns to include')
+    .option('--exclude <paths>', 'Comma-separated file path glob patterns to exclude')
+    .action(async (opts) => {
+      try {
+        await runStartScan({
+          repo: opts.repo,
+          branch: opts.branch,
+          commit: opts.commit,
+          include: opts.include,
+          exclude: opts.exclude,
+        });
+      } catch (err) {
+        process.stderr.write(JSON.stringify({ error: err.message }) + '\n');
+        process.exit(err.exitCode ?? 1);
+      }
+    });
 }
