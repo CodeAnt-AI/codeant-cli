@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.9] - 29/05/2026
+- Login Url
+
+## [0.4.8] - 29/05/2026
+- Start scan
+
 ## [0.4.7] - 22/05/2026
 - Scans center
 
