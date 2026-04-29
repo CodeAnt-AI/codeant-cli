@@ -11,6 +11,7 @@ export default function Login() {
   const { exit } = useApp();
   const [status, setStatus] = useState('opening');
   const [error, setError] = useState(null);
+  const [loginUrl, setLoginUrl] = useState('');
 
   useEffect(() => {
     // Check if already logged in
@@ -24,6 +25,7 @@ export default function Login() {
     const token = randomUUID();
     const baseUrl = getBaseUrl();
     const loginUrl = `https://app.codeant.ai?ideLoginToken=${token}`;
+    setLoginUrl(loginUrl);
     const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
 
     // Open browser
@@ -94,7 +96,7 @@ export default function Login() {
     return React.createElement(
       Box,
       { flexDirection: 'column', padding: 1 },
-      React.createElement(Text, { color: 'cyan' }, 'Waiting for login...'),
+      React.createElement(Text, { color: 'cyan' }, `Waiting for login. Open this URL in your browser: ${loginUrl}`),
       React.createElement(Text, { color: 'gray' }, 'Complete the login in your browser.'),
       React.createElement(Text, { color: 'gray' }, 'Checking every 10 seconds. Timeout in 10 minutes.')
     );
