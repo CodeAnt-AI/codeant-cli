@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.10] - 04/05/2026
+- Scans filtering added
+
 ## [0.4.9] - 29/05/2026
 - Login Url
 

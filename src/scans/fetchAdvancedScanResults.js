@@ -200,9 +200,12 @@ function normalizeAdvancedIssue(item, resultType) {
  * @param {string} repo       - "org/repo-name"
  * @param {string} commitId   - 40-char commit SHA
  * @param {string} resultType - one of ADVANCED_RESULT_TYPES values
+ * @param {{ filterDismissed?: boolean, includeFalsePositives?: boolean }} [opts]
  * @returns {Promise<{ success: boolean, issues?: Array, healthyPackages?: Array, status?: string, error?: string }>}
  */
-export async function fetchAdvancedScanResults(repo, commitId, resultType) {
+export async function fetchAdvancedScanResults(repo, commitId, resultType, opts = {}) {
+  const { filterDismissed = false, includeFalsePositives = true } = opts;
+
   if (!Object.values(ADVANCED_RESULT_TYPES).includes(resultType)) {
     return {
       success: false,
@@ -215,6 +218,8 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType) {
       repo,
       commit_id: commitId,
       result_type: resultType,
+      filter_dismissed: filterDismissed,
+      include_false_positives: includeFalsePositives,
     });
 
     if (!response) {
@@ -309,17 +314,17 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType) {
   }
 }
 
-export const fetchScaResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SCA);
+export const fetchScaResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SCA, opts);
 
-export const fetchSbomResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SBOM);
+export const fetchSbomResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SBOM, opts);
 
-export const fetchSecretsResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SECRETS);
+export const fetchSecretsResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SECRETS, opts);
 
-export const fetchIacResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.IAC);
+export const fetchIacResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.IAC, opts);
 
-export const fetchDeadCodeResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DEAD_CODE);
+export const fetchDeadCodeResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DEAD_CODE, opts);

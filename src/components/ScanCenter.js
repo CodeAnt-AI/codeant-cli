@@ -153,7 +153,7 @@ function ErrorView({ message, onBack, canGoBack }) {
 
 // ─── Main ScanCenter ─────────────────────────────────────────────────────────
 
-export default function ScanCenter() {
+export default function ScanCenter({ filterDismissed = false, includeFalsePositives = true }) {
   const { exit } = useApp();
 
   const [step, setStep] = useState(STEPS.LOADING);
@@ -198,7 +198,7 @@ export default function ScanCenter() {
 
   // ── Step 5: result type selected → fetch exactly one endpoint ──
   const handleSelectResultType = (item) =>
-    _handleSelectResultType({ STEPS, item, selectedRepo, selectedScan, setSelectedResultType, setStep, setLoadingMsg, setError, setResults });
+    _handleSelectResultType({ STEPS, item, selectedRepo, selectedScan, setSelectedResultType, setStep, setLoadingMsg, setError, setResults, filterDismissed, includeFalsePositives });
 
   // ── Back navigation ──
   const goBack = {
