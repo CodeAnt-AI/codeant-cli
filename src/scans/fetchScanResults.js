@@ -49,9 +49,12 @@ function extractCleanPath(fullPath, commitId, suffix = null) {
  * @param {string} repo      - "org/repo-name"
  * @param {string} commitId  - 40-char commit SHA
  * @param {string} resultType - one of VALID_RESULT_TYPES values
+ * @param {{ filterDismissed?: boolean, includeFalsePositives?: boolean }} [opts]
  * @returns {Promise<{ success: boolean, issues?: Array, status?: string, error?: string }>}
  */
-export async function fetchScanResults(repo, commitId, resultType) {
+export async function fetchScanResults(repo, commitId, resultType, opts = {}) {
+  const { filterDismissed = false, includeFalsePositives = true } = opts;
+
   if (!Object.values(VALID_RESULT_TYPES).includes(resultType)) {
     return {
       success: false,
@@ -64,6 +67,8 @@ export async function fetchScanResults(repo, commitId, resultType) {
       repo,
       commit_id: commitId,
       result_type: resultType,
+      filter_dismissed: filterDismissed,
+      include_false_positives: includeFalsePositives,
     });
 
     if (!response) {

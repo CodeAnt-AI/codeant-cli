@@ -211,8 +211,13 @@ program
   program
     .command('scan-center')
     .description('Browse scan results interactively')
-    .action(() => {
-      render(React.createElement(ScanCenter));
+    .option('--filter-dismissed', 'Exclude dismissed alerts from results (default: false)')
+    .option('--no-false-positives', 'Exclude false positives from results (default: included)')
+    .action((options) => {
+      render(React.createElement(ScanCenter, {
+        filterDismissed: options.filterDismissed ?? false,
+        includeFalsePositives: options.falsePositives ?? true,
+      }));
     });
 
   program

@@ -2,7 +2,7 @@ import { fetchScanResults } from '../scans/fetchScanResults.js';
 import { fetchAdvancedScanResults } from '../scans/fetchAdvancedScanResults.js';
 import { fetchDismissedAlerts } from '../scans/fetchDismissedAlerts.js';
 
-export async function handleSelectResultType({ STEPS, item, selectedRepo, selectedScan, setSelectedResultType, setStep, setLoadingMsg, setError, setResults }) {
+export async function handleSelectResultType({ STEPS, item, selectedRepo, selectedScan, setSelectedResultType, setStep, setLoadingMsg, setError, setResults, filterDismissed = false, includeFalsePositives = true }) {
   const rt = item.value;
   setSelectedResultType(rt);
   setStep(STEPS.LOADING);
@@ -10,12 +10,13 @@ export async function handleSelectResultType({ STEPS, item, selectedRepo, select
 
   const repo = selectedRepo.full_name;
   const commitId = selectedScan.commitId;
+  const fetchOpts = { filterDismissed, includeFalsePositives };
   let res;
 
   if (rt.kind === 'basic') {
-    res = await fetchScanResults(repo, commitId, rt.value);
+    res = await fetchScanResults(repo, commitId, rt.value, fetchOpts);
   } else if (rt.kind === 'advanced') {
-    res = await fetchAdvancedScanResults(repo, commitId, rt.value);
+    res = await fetchAdvancedScanResults(repo, commitId, rt.value, fetchOpts);
   } else if (rt.value === 'dismissed_alerts') {
     const r = await fetchDismissedAlerts(repo, 'security');
     res = r.success ? { success: true, issues: r.dismissedAlerts } : r;

@@ -22,6 +22,7 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
   }
 
   try {
+    console.error(`API Request: ${url} ${method} ${JSON.stringify(body)}`);
     const response = await fetch(url, options);
 
     if (response.status === 403) {
