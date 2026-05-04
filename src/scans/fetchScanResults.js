@@ -107,14 +107,14 @@ export async function fetchScanResults(repo, commitId, resultType, opts = {}) {
   }
 }
 
-export const fetchSastResults = (repo, commitId) =>
-  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.SECURITY_ISSUES);
+export const fetchSastResults = (repo, commitId, opts) =>
+  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.SECURITY_ISSUES, opts);
 
-export const fetchAntiPatternsResults = (repo, commitId) =>
-  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.ANTI_PATTERNS);
+export const fetchAntiPatternsResults = (repo, commitId, opts) =>
+  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.ANTI_PATTERNS, opts);
 
-export const fetchDocstringResults = (repo, commitId) =>
-  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.DOCSTRING);
+export const fetchDocstringResults = (repo, commitId, opts) =>
+  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.DOCSTRING, opts);
 
-export const fetchComplexFunctionsResults = (repo, commitId) =>
-  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.COMPLEX_FUNCTIONS);
+export const fetchComplexFunctionsResults = (repo, commitId, opts) =>
+  fetchScanResults(repo, commitId, VALID_RESULT_TYPES.COMPLEX_FUNCTIONS, opts);

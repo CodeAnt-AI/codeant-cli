@@ -314,17 +314,17 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
   }
 }
 
-export const fetchScaResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SCA);
+export const fetchScaResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SCA, opts);
 
-export const fetchSbomResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SBOM);
+export const fetchSbomResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SBOM, opts);
 
-export const fetchSecretsResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SECRETS);
+export const fetchSecretsResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.SECRETS, opts);
 
-export const fetchIacResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.IAC);
+export const fetchIacResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.IAC, opts);
 
-export const fetchDeadCodeResults = (repo, commitId) =>
-  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DEAD_CODE);
+export const fetchDeadCodeResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DEAD_CODE, opts);

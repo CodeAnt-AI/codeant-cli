@@ -7,7 +7,6 @@ import { paginate } from './lib/paginate.js';
 import { emit } from './lib/emit.js';
 import { progress, logError } from './lib/log.js';
 import { FORMATTERS } from './formatters/index.js';
-import { fetchDismissedAlerts } from '../../scans/fetchDismissedAlerts.js';
 
 /**
  * codeant scans results — full orchestration.
@@ -23,7 +22,8 @@ export async function runResults(opts = {}) {
     severity,
     path: pathGlob,
     check: checkRegex,
-    includeDismissed = false,
+    filterDismissed = false,
+    includeFalsePositives = true,
     format = 'json',
     output: outputPath = null,
     fields = null,
@@ -53,16 +53,12 @@ export async function runResults(opts = {}) {
   // 2. Parse types
   const categories = parseTypes(types);
 
-  // 3. Fetch in parallel + dismissed alerts
+  // 3. Fetch in parallel
   progress(`fetching ${categories.map((c) => c.key).join(', ')}…`);
-  const [settled, dismissedResult] = await Promise.all([
-    Promise.allSettled(categories.map((c) => c.fetcher(repo, scanMeta.commit_id))),
-    includeDismissed
-      ? Promise.resolve({ success: true, dismissedAlerts: [] })
-      : fetchDismissedAlerts(repo, 'security'),
-  ]);
-
-  const dismissedAlerts = dismissedResult.success ? (dismissedResult.dismissedAlerts ?? []) : [];
+  const fetchOpts = { filterDismissed, includeFalsePositives };
+  const settled = await Promise.allSettled(
+    categories.map((c) => c.fetcher(repo, scanMeta.commit_id, fetchOpts))
+  );
 
   // 4. Collect findings + errors
   const allFindings = [];
@@ -100,8 +96,6 @@ export async function runResults(opts = {}) {
     severity: severityList,
     pathGlob: pathGlob || null,
     checkRegex: checkRegex || null,
-    dismissedAlerts,
-    includeDismissed,
   });
 
   // 6. Sort
@@ -115,7 +109,8 @@ export async function runResults(opts = {}) {
     severity: severityList,
     path: pathGlob || null,
     check: checkRegex || null,
-    include_dismissed: includeDismissed,
+    filter_dismissed: filterDismissed,
+    include_false_positives: includeFalsePositives,
   };
 
   // Rebuild summary from all filtered (pre-page) findings
