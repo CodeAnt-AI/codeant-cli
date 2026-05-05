@@ -299,8 +299,8 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
       }
     }
 
-    // Filter secrets false positives
-    if (resultType === ADVANCED_RESULT_TYPES.SECRETS) {
+    // Filter secrets false positives only when caller explicitly excludes them
+    if (resultType === ADVANCED_RESULT_TYPES.SECRETS && !includeFalsePositives) {
       issues = issues.filter((issue) => String(issue.confidence_score || '').toLowerCase() !== 'false_positive');
     }
 
