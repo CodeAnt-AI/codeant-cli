@@ -106,8 +106,6 @@ export function normalizeIssue(issue, category) {
     cve: cve ? String(cve) : null,
     package: packageInfo,
     metadata,
-    dismissed: false,
-    dismiss_info: null,
   };
 }
 

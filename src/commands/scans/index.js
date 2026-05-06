@@ -71,7 +71,8 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--severity <list>', 'Filter by severity (e.g. critical,high)')
     .option('--path <glob>', 'Filter by file path glob')
     .option('--check <regex>', 'Filter by check ID or name (regex)')
-    .option('--include-dismissed', 'Include dismissed findings (excluded by default)')
+    .option('--filter-dismissed', 'Exclude dismissed findings (default: false)')
+    .option('--no-false-positives', 'Exclude false positives (default: included)')
     .option('--format <fmt>', 'Output format: json|sarif|csv|md|table (default: json)', 'json')
     .option('--output <path>', 'Write output to file instead of stdout')
     .option('--fields <list>', 'Project findings to subset of fields (comma-separated)')
@@ -96,7 +97,8 @@ export default function registerScansCommands(program, { runCmd }) {
           severity: opts.severity,
           path: opts.path,
           check: opts.check,
-          includeDismissed: opts.includeDismissed || false,
+          filterDismissed: opts.filterDismissed || false,
+          includeFalsePositives: opts.falsePositives ?? true,
           format: opts.format,
           output: opts.output,
           fields: opts.fields,
