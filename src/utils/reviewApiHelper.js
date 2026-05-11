@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { minimatch } from 'minimatch';
 
-const MAX_REVIEW_FILES = 10;
+const MAX_REVIEW_FILES = 15;
 const MAX_FILE_LINES = 5000;
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
 
@@ -184,41 +184,20 @@ class ReviewApiHelper extends CommonApiHelper {
       return true;
     });
 
-    // Dedupe by filename, keeping all hunks, but limit unique files to MAX_REVIEW_FILES
+    // Dedupe by filename, keeping all hunks (no cap yet — applied after size filtering)
     const fileOrder = [];
     const fileHunks = new Map();
-    let capped = false;
     for (const d of reviewable) {
       const f = d.filename_str;
       if (!fileHunks.has(f)) {
-        if (fileOrder.length >= MAX_REVIEW_FILES) {
-          capped = true;
-          if (!seenSkipped.has(f)) {
-            dedupedSkipped.push({ file: f, reason: `exceeded ${MAX_REVIEW_FILES}-file limit` });
-            seenSkipped.add(f);
-          }
-          continue;
-        }
         fileOrder.push(f);
         fileHunks.set(f, []);
       }
       fileHunks.get(f).push(d);
     }
 
-    // Reconstruct a combined diff string from the filtered hunks
-    const parts = [];
-    for (const f of fileOrder) {
-      const hunks = fileHunks.get(f);
-      // Build a file-level diff header + all hunk patches
-      const header = `diff --git a/${f} b/${f}\n--- a/${f}\n+++ b/${f}`;
-      const hunkPatches = hunks.map(h => h.patch_str).filter(Boolean);
-      if (hunkPatches.length > 0) {
-        parts.push(header + '\n' + hunkPatches.join('\n'));
-      }
-    }
-
     // Use head_file_str from diffs so file content matches the diff version (avoids working tree mismatch for --last-commit etc.)
-    const fileContents = {};
+    // Filter out files that exceed size or line limits before applying the cap
     const skippedLargeFiles = new Set();
     for (const f of fileOrder) {
       const hunks = fileHunks.get(f);
@@ -234,21 +213,49 @@ class ReviewApiHelper extends CommonApiHelper {
         if (lineCount > MAX_FILE_LINES) {
           skippedLargeFiles.add(f);
           dedupedSkipped.push({ file: f, reason: `too large (${lineCount} lines, max ${MAX_FILE_LINES})` });
-          continue;
         }
-        fileContents[f] = content;
       }
     }
 
-    // Remove diff sections for skipped files
-    const filteredParts = parts.filter((_, i) => !skippedLargeFiles.has(fileOrder[i]));
+    // Apply MAX_REVIEW_FILES cap after all filtering (binary, deleted, pattern, size)
+    let capped = false;
+    const cappedFileOrder = [];
+    for (const f of fileOrder) {
+      if (skippedLargeFiles.has(f)) continue;
+      if (cappedFileOrder.length >= MAX_REVIEW_FILES) {
+        capped = true;
+        if (!seenSkipped.has(f)) {
+          dedupedSkipped.push({ file: f, reason: `exceeded ${MAX_REVIEW_FILES}-file limit` });
+          seenSkipped.add(f);
+        }
+        continue;
+      }
+      cappedFileOrder.push(f);
+    }
 
-    const reviewedFiles = fileOrder.filter(f => !skippedLargeFiles.has(f));
+    // Build file contents for the capped set
+    const fileContents = {};
+    for (const f of cappedFileOrder) {
+      const content = fileHunks.get(f)[0]?.head_file_str || '';
+      if (content) fileContents[f] = content;
+    }
+
+    // Reconstruct a combined diff string from the capped set
+    const parts = [];
+    for (const f of cappedFileOrder) {
+      const hunks = fileHunks.get(f);
+      const header = `diff --git a/${f} b/${f}\n--- a/${f}\n+++ b/${f}`;
+      const hunkPatches = hunks.map(h => h.patch_str).filter(Boolean);
+      if (hunkPatches.length > 0) {
+        parts.push(header + '\n' + hunkPatches.join('\n'));
+      }
+    }
+
     return {
-      diff_content: filteredParts.join('\n'),
+      diff_content: parts.join('\n'),
       file_contents: fileContents,
       _meta: {
-        reviewed_files: reviewedFiles,
+        reviewed_files: cappedFileOrder,
         total_changed: allUniqueFiles.size,
         skipped: dedupedSkipped,
         capped,
