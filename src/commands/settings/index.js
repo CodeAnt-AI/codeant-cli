@@ -1,4 +1,5 @@
 import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
+import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
 
 /**
  * Register all `codeant settings <verb>` subcommands.
@@ -41,4 +42,21 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .requiredOption('--branch <name>', 'Branch name to set as default')
     .action((opts) => runCmd(() => runBranchesUpdateDefault({ repo: opts.repo, branch: opts.branch })));
+
+  // ── feature-flags get ──────────────────────────────────────────────────────
+  settings
+    .command('feature-flags-get')
+    .description('Get feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--v2', 'Use v2 feature flags', false)
+    .action((opts) => runCmd(() => runFeatureFlagsGet({ repo: opts.repo, v2: opts.v2 })));
+
+  // ── feature-flags update ───────────────────────────────────────────────────
+  settings
+    .command('feature-flags-update')
+    .description('Update feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"pr_review":"enable"}\')')
+    .option('--v2', 'Use v2 feature flags', false)
+    .action((opts) => runCmd(() => runFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags, v2: opts.v2 })));
 }
