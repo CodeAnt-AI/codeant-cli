@@ -7,6 +7,17 @@ import { runTeamsChannels, runTeamsChannelGet } from './teams.js';
 import { runRecurringScanslist, runRecurringScansCreate, runRecurringScansUpdate } from './recurring-scans.js';
 import { runSprintReportsList, runSprintReportsCreate, runSprintReportsUpdate } from './sprint-reports.js';
 import { runCveReportingList, runCveReportingCreate, runCveReportingUpdate } from './cve-reporting.js';
+import {
+  runTeamSubscriptionsList,
+  runTeamUsersList,
+  runTeamUserGet,
+  runTeamUserCreate,
+  runTeamUserDelete,
+  runTeamUserUpdate,
+  runTeamRbacGet,
+  runTeamRbacSave,
+  runTeamPlanEnd,
+} from './team-management.js';
 
 /**
  * Register all `codeant settings <verb>` subcommands.
@@ -310,4 +321,95 @@ export default function registerSettingsCommands(program, { runCmd }) {
       reportConfig: opts.reportConfig,
       notificationConfig: opts.notificationConfig,
     })));
+
+  // ── team-subscriptions-list ────────────────────────────────────────────────
+  settings
+    .command('team-subscriptions-list')
+    .description('List all subscriptions for the account')
+    .action(() => runCmd(() => runTeamSubscriptionsList()));
+
+  // ── team-users-list ────────────────────────────────────────────────────────
+  settings
+    .command('team-users-list')
+    .description('List users for a subscription')
+    .requiredOption('--subscription-id <id>', 'Subscription ID')
+    .action((opts) => runCmd(() => runTeamUsersList({ subscriptionId: opts.subscriptionId })));
+
+  // ── team-user-get ──────────────────────────────────────────────────────────
+  settings
+    .command('team-user-get')
+    .description('Get a user by ID')
+    .requiredOption('--user-id <id>', 'User ID')
+    .action((opts) => runCmd(() => runTeamUserGet({ userId: opts.userId })));
+
+  // ── team-user-create ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-create')
+    .description('Create a new team user')
+    .requiredOption('--user-id <id>', 'User ID')
+    .requiredOption('--email <email>', 'User email')
+    .requiredOption('--name <name>', 'User display name')
+    .requiredOption('--role <role>', 'User role (e.g. developer, admin)')
+    .option('--plan-ids <json>', 'Plan IDs as JSON array (e.g. \'["plan_1"]\')', '[]')
+    .option('--subscription-ids <json>', 'Subscription IDs as JSON array', '[]')
+    .option('--invited', 'Send invitation email', false)
+    .action((opts) => runCmd(() => runTeamUserCreate({
+      userId: opts.userId,
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      planIds: opts.planIds,
+      subscriptionIds: opts.subscriptionIds,
+      invited: opts.invited,
+    })));
+
+  // ── team-user-delete ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-delete')
+    .description('Delete a team user')
+    .requiredOption('--user-id <id>', 'User ID to delete')
+    .action((opts) => runCmd(() => runTeamUserDelete({ userId: opts.userId })));
+
+  // ── team-user-update ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-update')
+    .description('Update a team user')
+    .requiredOption('--user-id <id>', 'User ID to update')
+    .requiredOption('--email <email>', 'User email')
+    .requiredOption('--name <name>', 'User display name')
+    .requiredOption('--role <role>', 'User role (e.g. developer, admin)')
+    .requiredOption('--status <status>', 'User status (e.g. active, inactive)')
+    .option('--plan-ids <json>', 'Plan IDs as JSON array', '[]')
+    .option('--subscription-ids <json>', 'Subscription IDs as JSON array', '[]')
+    .action((opts) => runCmd(() => runTeamUserUpdate({
+      userId: opts.userId,
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      status: opts.status,
+      planIds: opts.planIds,
+      subscriptionIds: opts.subscriptionIds,
+    })));
+
+  // ── team-rbac-get ──────────────────────────────────────────────────────────
+  settings
+    .command('team-rbac-get')
+    .description('Get RBAC settings for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runTeamRbacGet({ repo: opts.repo })));
+
+  // ── team-rbac-save ─────────────────────────────────────────────────────────
+  settings
+    .command('team-rbac-save')
+    .description('Save RBAC settings for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--data <json>', 'RBAC settings as JSON (e.g. \'{"enabled":true}\')')
+    .action((opts) => runCmd(() => runTeamRbacSave({ repo: opts.repo, data: opts.data })));
+
+  // ── team-plan-end ──────────────────────────────────────────────────────────
+  settings
+    .command('team-plan-end')
+    .description('End/expire the active subscription plan')
+    .option('--include-users', 'Also remove all users from the plan', false)
+    .action((opts) => runCmd(() => runTeamPlanEnd({ includeUsers: opts.includeUsers })));
 }
