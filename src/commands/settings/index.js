@@ -1,6 +1,7 @@
 import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
 import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
 import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
+import { runPrInstructionsGet, runPrInstructionsSave, runPrInstructionsEdit, runPrInstructionsDelete } from './pr-instructions.js';
 
 /**
  * Register all `codeant settings <verb>` subcommands.
@@ -75,4 +76,56 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"sast_analysis":"enabled"}\')')
     .action((opts) => runCmd(() => runAnalysisFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags })));
+
+  // ── pr-instructions get ────────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-get')
+    .description('Get PR review instructions')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .action((opts) => runCmd(() => runPrInstructionsGet({ instructionsType: opts.type })));
+
+  // ── pr-instructions save ───────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-save')
+    .description('Save a new PR review instruction')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .option('--file-pattern <pattern>', 'File pattern (e.g. *.py)')
+    .option('--description <text>', 'Instruction description')
+    .option('--description-file <path>', 'Path to a file containing the description')
+    .option('--instruction-id <id>', 'Instruction ID (for upsert)')
+    .action((opts) => runCmd(() => runPrInstructionsSave({
+      instructionType: opts.type,
+      filePattern: opts.filePattern,
+      description: opts.description,
+      descriptionFile: opts.descriptionFile,
+      instructionId: opts.instructionId,
+    })));
+
+  // ── pr-instructions edit ───────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-edit')
+    .description('Edit an existing PR review instruction')
+    .requiredOption('--instruction-id <id>', 'Instruction ID to edit')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .option('--description <text>', 'Updated description')
+    .option('--description-file <path>', 'Path to a file containing the description')
+    .option('--file-pattern <pattern>', 'Updated file pattern')
+    .action((opts) => runCmd(() => runPrInstructionsEdit({
+      instructionType: opts.type,
+      instructionId: opts.instructionId,
+      description: opts.description,
+      descriptionFile: opts.descriptionFile,
+      filePattern: opts.filePattern,
+    })));
+
+  // ── pr-instructions delete ─────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-delete')
+    .description('Delete a PR review instruction')
+    .requiredOption('--instruction-id <id>', 'Instruction ID to delete')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .action((opts) => runCmd(() => runPrInstructionsDelete({
+      instructionType: opts.type,
+      instructionId: opts.instructionId,
+    })));
 }
