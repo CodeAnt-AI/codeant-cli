@@ -1,3 +1,4 @@
+import { runAuditLogsSettings } from './audit-logs.js';
 import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
 import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
 import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
@@ -38,6 +39,15 @@ export default function registerSettingsCommands(program, { runCmd }) {
   const settings = program
     .command('settings')
     .description('Manage CodeAnt AI settings');
+
+  // ── audit-logs settings ────────────────────────────────────────────────────
+  settings
+    .command('audit-logs')
+    .description('List settings change audit logs for the org')
+    .option('--days <n>', 'Number of days to look back', '30')
+    .option('--page <n>', 'Page number', '1')
+    .option('--limit <n>', 'Results per page (max 200)', '50')
+    .action((opts) => runCmd(() => runAuditLogsSettings({ days: opts.days, page: opts.page, limit: opts.limit })));
 
   // ── branches all ───────────────────────────────────────────────────────────
   settings
