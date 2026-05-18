@@ -1,4 +1,5 @@
 import { runAuditLogsSettings } from './audit-logs.js';
+import { runRepos } from './repos.js';
 import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
 import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
 import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
@@ -39,6 +40,13 @@ export default function registerSettingsCommands(program, { runCmd }) {
   const settings = program
     .command('settings')
     .description('Manage CodeAnt AI settings');
+
+  // ── repos ──────────────────────────────────────────────────────────────────
+  settings
+    .command('repos')
+    .description('List repositories')
+    .option('--org <org>', 'Organization name (auto-picked when only one is authenticated)')
+    .action((opts) => runCmd(() => runRepos({ org: opts.org })));
 
   // ── audit-logs settings ────────────────────────────────────────────────────
   settings
