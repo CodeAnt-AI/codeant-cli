@@ -1,5 +1,6 @@
 import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
 import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
+import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
 
 /**
  * Register all `codeant settings <verb>` subcommands.
@@ -59,4 +60,19 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"pr_review":"enable"}\')')
     .option('--v2', 'Use v2 feature flags', false)
     .action((opts) => runCmd(() => runFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags, v2: opts.v2 })));
+
+  // ── analysis feature-flags get ─────────────────────────────────────────────
+  settings
+    .command('analysis-feature-flags-get')
+    .description('Get analysis feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runAnalysisFeatureFlagsGet({ repo: opts.repo })));
+
+  // ── analysis feature-flags update ─────────────────────────────────────────
+  settings
+    .command('analysis-feature-flags-update')
+    .description('Update analysis feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"sast_analysis":"enabled"}\')')
+    .action((opts) => runCmd(() => runAnalysisFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags })));
 }
