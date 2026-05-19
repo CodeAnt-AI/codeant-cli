@@ -66,10 +66,10 @@ export function detectRepoName() {
   const origin = getOrigin();
   if (!origin) return null;
   // SSH: git@host:path/to/repo[.git]
-  const sshMatch = origin.match(/^[^@]+@[^:]+:(.+?)(?:\.git)?$/);
+  const sshMatch = origin.match(/^(?:[^@]+@)?[^:]+:(.+?)(?:\.git)?$/);
   if (sshMatch) return sshMatch[1];
   // HTTPS: https://[user:pass@]host/path/to/repo[.git]
-  const httpsMatch = origin.match(/^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/);
+  const httpsMatch = origin.match(/^(?:https?|git):\/\/[^/]+\/(.+?)(?:\.git)?$/);
   if (httpsMatch) return httpsMatch[1];
   return null;
 }
