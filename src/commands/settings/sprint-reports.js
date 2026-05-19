@@ -21,7 +21,7 @@ export async function runSprintReportsCreate({ name, repo, scheduleConfig, repor
   });
 }
 
-export async function runSprintReportsUpdate({ configId, status, name, description, scheduleConfig, reportConfig, notificationConfig } = {}) {
+export async function runSprintReportsUpdate({ configId, repo, status, name, description, scheduleConfig, reportConfig, notificationConfig } = {}) {
   if (!configId) {
     const err = new Error('--config-id is required');
     err.exitCode = 1;
@@ -29,6 +29,7 @@ export async function runSprintReportsUpdate({ configId, status, name, descripti
   }
   return fetchApi('/extension/metrics/sprint-reports/update', 'POST', {
     config_id: configId,
+    repo,
     status,
     name,
     description,

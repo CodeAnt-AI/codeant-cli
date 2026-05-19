@@ -21,7 +21,7 @@ export async function runRecurringScansCreate({ name, repo, scheduleConfig, scan
   });
 }
 
-export async function runRecurringScansUpdate({ scheduleId, status, name, description, scheduleConfig, scanConfig, notificationConfig } = {}) {
+export async function runRecurringScansUpdate({ scheduleId, repo, status, name, description, scheduleConfig, scanConfig, notificationConfig } = {}) {
   if (!scheduleId) {
     const err = new Error('--schedule-id is required');
     err.exitCode = 1;
@@ -29,6 +29,7 @@ export async function runRecurringScansUpdate({ scheduleId, status, name, descri
   }
   return fetchApi('/extension/analysis/recurring-scans/update', 'POST', {
     schedule_id: scheduleId,
+    repo,
     status,
     name,
     description,

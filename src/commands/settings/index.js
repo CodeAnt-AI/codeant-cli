@@ -113,7 +113,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
   settings
     .command('pr-instructions-get')
     .description('Get PR review instructions')
-    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .requiredOption('--type <type>', 'Instruction type (e.g. custom)')
     .action((opts) => runCmd(() => runPrInstructionsGet({ instructionsType: opts.type })));
 
   // ── pr-instructions save ───────────────────────────────────────────────────
@@ -196,6 +196,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .command('recurring-scans-update')
     .description('Update a recurring scan schedule')
     .requiredOption('--schedule-id <id>', 'Schedule ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
     .option('--name <name>', 'New name')
     .option('--description <text>', 'New description')
@@ -204,6 +205,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .option('--notification-config <json>', 'Notification config as JSON')
     .action((opts) => runCmd(() => runRecurringScansUpdate({
       scheduleId: opts.scheduleId,
+      repo: opts.repo,
       status: opts.status,
       name: opts.name,
       description: opts.description,
@@ -247,6 +249,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .command('sprint-reports-update')
     .description('Update a sprint report configuration')
     .requiredOption('--config-id <id>', 'Config ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
     .option('--name <name>', 'New name')
     .option('--description <text>', 'New description')
@@ -255,6 +258,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .option('--notification-config <json>', 'Notification config as JSON')
     .action((opts) => runCmd(() => runSprintReportsUpdate({
       configId: opts.configId,
+      repo: opts.repo,
       status: opts.status,
       name: opts.name,
       description: opts.description,
@@ -298,6 +302,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .command('cve-reporting-update')
     .description('Update a CVE report configuration')
     .requiredOption('--report-id <id>', 'Report ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
     .option('--name <name>', 'New name')
     .option('--description <text>', 'New description')
@@ -306,6 +311,7 @@ export default function registerSettingsCommands(program, { runCmd }) {
     .option('--notification-config <json>', 'Notification config as JSON')
     .action((opts) => runCmd(() => runCveReportingUpdate({
       reportId: opts.reportId,
+      repo: opts.repo,
       status: opts.status,
       name: opts.name,
       description: opts.description,
