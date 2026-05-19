@@ -19,6 +19,7 @@ import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
 import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
 import registerScansCommands from './commands/scans/index.js';
+import registerSettingsCommands from './commands/settings/index.js';
 
 // Read version from package.json
 const require = createRequire(import.meta.url);
@@ -392,6 +393,9 @@ program
 
   // ─── Scans commands ───
   registerScansCommands(program, { runCmd });
+
+  // ─── Settings commands ───
+  registerSettingsCommands(program, { runCmd });
 
   // ─── Telemetry control ───
   program

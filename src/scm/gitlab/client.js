@@ -10,7 +10,7 @@ export function getClient() {
   return new Gitlab(opts);
 }
 
-// GitLab uses project ID or "owner/repo" encoded as "owner%2Frepo"
+// GitLab uses project ID or the full path — gitbeaker's endpoint tag encodes it
 export function projectId(name) {
-  return encodeURIComponent(name);
+  return name;
 }

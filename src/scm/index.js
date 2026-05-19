@@ -67,7 +67,7 @@ export function detectRepoName() {
   if (!origin) return null;
   // Handle SSH: git@github.com:owner/repo.git
   // Handle HTTPS: https://github.com/owner/repo.git
-  const match = origin.match(/[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?$/);
+  const match = origin.match(/[/:]([\w.-]+(?:\/[\w.-]+)+?)(?:\.git)?$/);
   return match ? match[1] : null;
 }
 

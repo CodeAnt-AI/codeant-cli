@@ -1,0 +1,413 @@
+import { runAuditLogsSettings } from './audit-logs.js';
+import { runRepos } from './repos.js';
+import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './branches.js';
+import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
+import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
+import { runPrInstructionsGet, runPrInstructionsSave, runPrInstructionsEdit, runPrInstructionsDelete } from './pr-instructions.js';
+import { runRecurringScanslist, runRecurringScansCreate, runRecurringScansUpdate } from './recurring-scans.js';
+import { runSprintReportsList, runSprintReportsCreate, runSprintReportsUpdate } from './sprint-reports.js';
+import { runCveReportingList, runCveReportingCreate, runCveReportingUpdate } from './cve-reporting.js';
+import {
+  runTeamSubscriptionsList,
+  runTeamUsersList,
+  runTeamUserGet,
+  runTeamUserCreate,
+  runTeamUserDelete,
+  runTeamUserUpdate,
+  runTeamRbacGet,
+  runTeamRbacSave,
+  runTeamPlanEnd,
+} from './team-management.js';
+
+/**
+ * Register all `codeant settings <verb>` subcommands.
+ *
+ * Each subcommand implementation lives in its own file alongside this index
+ * and exports a single async function named run<Command>(opts).
+ *
+ * To add a new subcommand:
+ *   1. Create src/commands/settings/<name>.js exporting run<Name>(opts).
+ *   2. Import it here.
+ *   3. Add a settings.command(...).action(...) block below following the
+ *      existing pattern.
+ *
+ * @param {import('commander').Command} program
+ * @param {{ runCmd: Function }} helpers
+ */
+export default function registerSettingsCommands(program, { runCmd }) {
+  const settings = program
+    .command('settings')
+    .description('Manage CodeAnt AI settings');
+
+  // ── repos ──────────────────────────────────────────────────────────────────
+  settings
+    .command('repos')
+    .description('List repositories')
+    .option('--org <org>', 'Organization name (auto-picked when only one is authenticated)')
+    .action((opts) => runCmd(() => runRepos({ org: opts.org })));
+
+  // ── audit-logs settings ────────────────────────────────────────────────────
+  settings
+    .command('audit-logs')
+    .description('List settings change audit logs for the org')
+    .option('--days <n>', 'Number of days to look back', '30')
+    .option('--page <n>', 'Page number', '1')
+    .option('--limit <n>', 'Results per page (max 200)', '50')
+    .action((opts) => runCmd(() => runAuditLogsSettings({ days: opts.days, page: opts.page, limit: opts.limit })));
+
+  // ── branches all ───────────────────────────────────────────────────────────
+  settings
+    .command('branches-all')
+    .description('List all branches for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runBranchesAll({ repo: opts.repo })));
+
+  // ── branches default ───────────────────────────────────────────────────────
+  settings
+    .command('branches-default')
+    .description('Get the default branch for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runBranchesDefault({ repo: opts.repo })));
+
+  // ── branches update-default ────────────────────────────────────────────────
+  settings
+    .command('branches-update-default')
+    .description('Set the default branch for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--branch <name>', 'Branch name to set as default')
+    .action((opts) => runCmd(() => runBranchesUpdateDefault({ repo: opts.repo, branch: opts.branch })));
+
+  // ── feature-flags get ──────────────────────────────────────────────────────
+  settings
+    .command('feature-flags-get')
+    .description('Get feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--v2', 'Use v2 feature flags', false)
+    .action((opts) => runCmd(() => runFeatureFlagsGet({ repo: opts.repo, v2: opts.v2 })));
+
+  // ── feature-flags update ───────────────────────────────────────────────────
+  settings
+    .command('feature-flags-update')
+    .description('Update feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"pr_review":"enable"}\')')
+    .option('--v2', 'Use v2 feature flags', false)
+    .action((opts) => runCmd(() => runFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags, v2: opts.v2 })));
+
+  // ── analysis feature-flags get ─────────────────────────────────────────────
+  settings
+    .command('analysis-feature-flags-get')
+    .description('Get analysis feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runAnalysisFeatureFlagsGet({ repo: opts.repo })));
+
+  // ── analysis feature-flags update ─────────────────────────────────────────
+  settings
+    .command('analysis-feature-flags-update')
+    .description('Update analysis feature flags for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--flags <json>', 'Feature flags as a JSON string (e.g. \'{"sast_analysis":"enabled"}\')')
+    .action((opts) => runCmd(() => runAnalysisFeatureFlagsUpdate({ repo: opts.repo, flags: opts.flags })));
+
+  // ── pr-instructions get ────────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-get')
+    .description('Get PR review instructions')
+    .requiredOption('--type <type>', 'Instruction type (e.g. custom)')
+    .action((opts) => runCmd(() => runPrInstructionsGet({ instructionsType: opts.type })));
+
+  // ── pr-instructions save ───────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-save')
+    .description('Save a new PR review instruction')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .option('--file-pattern <pattern>', 'File pattern (e.g. *.py)')
+    .option('--description <text>', 'Instruction description')
+    .option('--description-file <path>', 'Path to a file containing the description')
+    .option('--instruction-id <id>', 'Instruction ID (for upsert)')
+    .action((opts) => runCmd(() => runPrInstructionsSave({
+      instructionType: opts.type,
+      filePattern: opts.filePattern,
+      description: opts.description,
+      descriptionFile: opts.descriptionFile,
+      instructionId: opts.instructionId,
+    })));
+
+  // ── pr-instructions edit ───────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-edit')
+    .description('Edit an existing PR review instruction')
+    .requiredOption('--instruction-id <id>', 'Instruction ID to edit')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .option('--description <text>', 'Updated description')
+    .option('--description-file <path>', 'Path to a file containing the description')
+    .option('--file-pattern <pattern>', 'Updated file pattern')
+    .action((opts) => runCmd(() => runPrInstructionsEdit({
+      instructionType: opts.type,
+      instructionId: opts.instructionId,
+      description: opts.description,
+      descriptionFile: opts.descriptionFile,
+      filePattern: opts.filePattern,
+    })));
+
+  // ── pr-instructions delete ─────────────────────────────────────────────────
+  settings
+    .command('pr-instructions-delete')
+    .description('Delete a PR review instruction')
+    .requiredOption('--instruction-id <id>', 'Instruction ID to delete')
+    .option('--type <type>', 'Instruction type (e.g. custom)')
+    .action((opts) => runCmd(() => runPrInstructionsDelete({
+      instructionType: opts.type,
+      instructionId: opts.instructionId,
+    })));
+
+  // ── recurring-scans list ───────────────────────────────────────────────────
+  settings
+    .command('recurring-scans-list')
+    .description('List recurring scan schedules')
+    .option('--repo <repo>', 'Filter by repository (owner/repo)')
+    .option('--status <status>', 'Filter by status (e.g. ACTIVE)')
+    .option('--schedule-id <id>', 'Filter by schedule ID')
+    .action((opts) => runCmd(() => runRecurringScanslist({ repo: opts.repo, status: opts.status, scheduleId: opts.scheduleId })));
+
+  // ── recurring-scans create ─────────────────────────────────────────────────
+  settings
+    .command('recurring-scans-create')
+    .description('Create a recurring scan schedule')
+    .requiredOption('--name <name>', 'Schedule name')
+    .option('--repo <repo>', 'Repository (owner/repo)')
+    .option('--schedule-config <json>', 'Schedule config as JSON (e.g. \'{"frequency":"weekly"}\')')
+    .option('--scan-config <json>', 'Scan config as JSON')
+    .option('--description <text>', 'Description')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .option('--created-by <user>', 'Creator identifier')
+    .action((opts) => runCmd(() => runRecurringScansCreate({
+      name: opts.name,
+      repo: opts.repo,
+      scheduleConfig: opts.scheduleConfig,
+      scanConfig: opts.scanConfig,
+      description: opts.description,
+      notificationConfig: opts.notificationConfig,
+      createdBy: opts.createdBy,
+    })));
+
+  // ── recurring-scans update ─────────────────────────────────────────────────
+  settings
+    .command('recurring-scans-update')
+    .description('Update a recurring scan schedule')
+    .requiredOption('--schedule-id <id>', 'Schedule ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
+    .option('--name <name>', 'New name')
+    .option('--description <text>', 'New description')
+    .option('--schedule-config <json>', 'Schedule config as JSON')
+    .option('--scan-config <json>', 'Scan config as JSON')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .action((opts) => runCmd(() => runRecurringScansUpdate({
+      scheduleId: opts.scheduleId,
+      repo: opts.repo,
+      status: opts.status,
+      name: opts.name,
+      description: opts.description,
+      scheduleConfig: opts.scheduleConfig,
+      scanConfig: opts.scanConfig,
+      notificationConfig: opts.notificationConfig,
+    })));
+
+  // ── sprint-reports list ────────────────────────────────────────────────────
+  settings
+    .command('sprint-reports-list')
+    .description('List sprint report configurations')
+    .option('--repo <repo>', 'Filter by repository (owner/repo)')
+    .option('--status <status>', 'Filter by status (e.g. ACTIVE)')
+    .option('--config-id <id>', 'Filter by config ID')
+    .action((opts) => runCmd(() => runSprintReportsList({ repo: opts.repo, status: opts.status, configId: opts.configId })));
+
+  // ── sprint-reports create ──────────────────────────────────────────────────
+  settings
+    .command('sprint-reports-create')
+    .description('Create a sprint report configuration')
+    .requiredOption('--name <name>', 'Report name')
+    .option('--repo <repo>', 'Repository (owner/repo)')
+    .option('--schedule-config <json>', 'Schedule config as JSON (e.g. \'{"frequency":"weekly"}\')')
+    .option('--report-config <json>', 'Report config as JSON')
+    .option('--description <text>', 'Description')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .option('--created-by <user>', 'Creator identifier')
+    .action((opts) => runCmd(() => runSprintReportsCreate({
+      name: opts.name,
+      repo: opts.repo,
+      scheduleConfig: opts.scheduleConfig,
+      reportConfig: opts.reportConfig,
+      description: opts.description,
+      notificationConfig: opts.notificationConfig,
+      createdBy: opts.createdBy,
+    })));
+
+  // ── sprint-reports update ──────────────────────────────────────────────────
+  settings
+    .command('sprint-reports-update')
+    .description('Update a sprint report configuration')
+    .requiredOption('--config-id <id>', 'Config ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
+    .option('--name <name>', 'New name')
+    .option('--description <text>', 'New description')
+    .option('--schedule-config <json>', 'Schedule config as JSON')
+    .option('--report-config <json>', 'Report config as JSON')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .action((opts) => runCmd(() => runSprintReportsUpdate({
+      configId: opts.configId,
+      repo: opts.repo,
+      status: opts.status,
+      name: opts.name,
+      description: opts.description,
+      scheduleConfig: opts.scheduleConfig,
+      reportConfig: opts.reportConfig,
+      notificationConfig: opts.notificationConfig,
+    })));
+
+  // ── cve-reporting list ─────────────────────────────────────────────────────
+  settings
+    .command('cve-reporting-list')
+    .description('List CVE report configurations')
+    .option('--repo <repo>', 'Filter by repository (owner/repo)')
+    .option('--status <status>', 'Filter by status (e.g. ACTIVE)')
+    .option('--report-id <id>', 'Filter by report ID')
+    .action((opts) => runCmd(() => runCveReportingList({ repo: opts.repo, status: opts.status, reportId: opts.reportId })));
+
+  // ── cve-reporting create ───────────────────────────────────────────────────
+  settings
+    .command('cve-reporting-create')
+    .description('Create a CVE report configuration')
+    .requiredOption('--name <name>', 'Report name')
+    .option('--repo <repo>', 'Repository (owner/repo)')
+    .option('--schedule-config <json>', 'Schedule config as JSON (e.g. \'{"frequency":"weekly"}\')')
+    .option('--report-config <json>', 'Report config as JSON')
+    .option('--description <text>', 'Description')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .option('--created-by <user>', 'Creator identifier')
+    .action((opts) => runCmd(() => runCveReportingCreate({
+      name: opts.name,
+      repo: opts.repo,
+      scheduleConfig: opts.scheduleConfig,
+      reportConfig: opts.reportConfig,
+      description: opts.description,
+      notificationConfig: opts.notificationConfig,
+      createdBy: opts.createdBy,
+    })));
+
+  // ── cve-reporting update ───────────────────────────────────────────────────
+  settings
+    .command('cve-reporting-update')
+    .description('Update a CVE report configuration')
+    .requiredOption('--report-id <id>', 'Report ID to update')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--status <status>', 'New status (e.g. ACTIVE, INACTIVE)')
+    .option('--name <name>', 'New name')
+    .option('--description <text>', 'New description')
+    .option('--schedule-config <json>', 'Schedule config as JSON')
+    .option('--report-config <json>', 'Report config as JSON')
+    .option('--notification-config <json>', 'Notification config as JSON')
+    .action((opts) => runCmd(() => runCveReportingUpdate({
+      reportId: opts.reportId,
+      repo: opts.repo,
+      status: opts.status,
+      name: opts.name,
+      description: opts.description,
+      scheduleConfig: opts.scheduleConfig,
+      reportConfig: opts.reportConfig,
+      notificationConfig: opts.notificationConfig,
+    })));
+
+  // ── team-subscriptions-list ────────────────────────────────────────────────
+  settings
+    .command('team-subscriptions-list')
+    .description('List all subscriptions for the account')
+    .action(() => runCmd(() => runTeamSubscriptionsList()));
+
+  // ── team-users-list ────────────────────────────────────────────────────────
+  settings
+    .command('team-users-list')
+    .description('List users for a subscription')
+    .requiredOption('--subscription-id <id>', 'Subscription ID')
+    .action((opts) => runCmd(() => runTeamUsersList({ subscriptionId: opts.subscriptionId })));
+
+  // ── team-user-get ──────────────────────────────────────────────────────────
+  settings
+    .command('team-user-get')
+    .description('Get a user by ID')
+    .requiredOption('--user-id <id>', 'User ID')
+    .action((opts) => runCmd(() => runTeamUserGet({ userId: opts.userId })));
+
+  // ── team-user-create ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-create')
+    .description('Create a new team user')
+    .requiredOption('--user-id <id>', 'User ID')
+    .requiredOption('--email <email>', 'User email')
+    .requiredOption('--name <name>', 'User display name')
+    .requiredOption('--role <role>', 'User role (e.g. developer, admin)')
+    .option('--plan-ids <json>', 'Plan IDs as JSON array (e.g. \'["plan_1"]\')', '[]')
+    .option('--subscription-ids <json>', 'Subscription IDs as JSON array', '[]')
+    .option('--invited', 'Send invitation email', false)
+    .action((opts) => runCmd(() => runTeamUserCreate({
+      userId: opts.userId,
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      planIds: opts.planIds,
+      subscriptionIds: opts.subscriptionIds,
+      invited: opts.invited,
+    })));
+
+  // ── team-user-delete ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-delete')
+    .description('Delete a team user')
+    .requiredOption('--user-id <id>', 'User ID to delete')
+    .action((opts) => runCmd(() => runTeamUserDelete({ userId: opts.userId })));
+
+  // ── team-user-update ───────────────────────────────────────────────────────
+  settings
+    .command('team-user-update')
+    .description('Update a team user')
+    .requiredOption('--user-id <id>', 'User ID to update')
+    .requiredOption('--email <email>', 'User email')
+    .requiredOption('--name <name>', 'User display name')
+    .requiredOption('--role <role>', 'User role (e.g. developer, admin)')
+    .requiredOption('--status <status>', 'User status (e.g. active, inactive)')
+    .option('--plan-ids <json>', 'Plan IDs as JSON array', '[]')
+    .option('--subscription-ids <json>', 'Subscription IDs as JSON array', '[]')
+    .action((opts) => runCmd(() => runTeamUserUpdate({
+      userId: opts.userId,
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      status: opts.status,
+      planIds: opts.planIds,
+      subscriptionIds: opts.subscriptionIds,
+    })));
+
+  // ── team-rbac-get ──────────────────────────────────────────────────────────
+  settings
+    .command('team-rbac-get')
+    .description('Get RBAC settings for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .action((opts) => runCmd(() => runTeamRbacGet({ repo: opts.repo })));
+
+  // ── team-rbac-save ─────────────────────────────────────────────────────────
+  settings
+    .command('team-rbac-save')
+    .description('Save RBAC settings for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .requiredOption('--data <json>', 'RBAC settings as JSON (e.g. \'{"enabled":true}\')')
+    .action((opts) => runCmd(() => runTeamRbacSave({ repo: opts.repo, data: opts.data })));
+
+  // ── team-plan-end ──────────────────────────────────────────────────────────
+  settings
+    .command('team-plan-end')
+    .description('End/expire the active subscription plan')
+    .option('--include-users', 'Also remove all users from the plan', false)
+    .action((opts) => runCmd(() => runTeamPlanEnd({ includeUsers: opts.includeUsers })));
+}

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.4.12] - 19/05/2026
+- Settings added
+
 ## [0.4.10] - 04/05/2026
 - Scans filtering added
 
