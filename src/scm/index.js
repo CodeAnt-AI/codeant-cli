@@ -65,10 +65,13 @@ export function detectRemote() {
 export function detectRepoName() {
   const origin = getOrigin();
   if (!origin) return null;
-  // Handle SSH: git@github.com:owner/repo.git
-  // Handle HTTPS: https://github.com/owner/repo.git
-  const match = origin.match(/[/:]([\w.-]+(?:\/[\w.-]+)+?)(?:\.git)?$/);
-  return match ? match[1] : null;
+  // SSH: git@host:path/to/repo[.git]
+  const sshMatch = origin.match(/^(?:[^@]+@)?[^:]+:(.+?)(?:\.git)?$/);
+  if (sshMatch) return sshMatch[1];
+  // HTTPS: https://[user:pass@]host/path/to/repo[.git]
+  const httpsMatch = origin.match(/^(?:https?|git):\/\/[^/]+\/(.+?)(?:\.git)?$/);
+  if (httpsMatch) return httpsMatch[1];
+  return null;
 }
 
 // Auto-detect default branch
