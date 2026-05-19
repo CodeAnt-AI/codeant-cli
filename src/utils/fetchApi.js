@@ -23,6 +23,7 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
 
   try {
     const response = await fetch(url, options);
+    console.error('API Response Status:', response.status);
 
     if (response.status === 403) {
       throw new Error('Access denied (403). Please run `codeant logout` and then `codeant login` to re-authenticate.');

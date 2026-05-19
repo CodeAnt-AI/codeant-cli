@@ -4,8 +4,6 @@ import { runBranchesAll, runBranchesDefault, runBranchesUpdateDefault } from './
 import { runFeatureFlagsGet, runFeatureFlagsUpdate } from './feature-flags.js';
 import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from './analysis-feature-flags.js';
 import { runPrInstructionsGet, runPrInstructionsSave, runPrInstructionsEdit, runPrInstructionsDelete } from './pr-instructions.js';
-import { runSlackChannels, runSlackChannelGet } from './slack.js';
-import { runTeamsChannels, runTeamsChannelGet } from './teams.js';
 import { runRecurringScanslist, runRecurringScansCreate, runRecurringScansUpdate } from './recurring-scans.js';
 import { runSprintReportsList, runSprintReportsCreate, runSprintReportsUpdate } from './sprint-reports.js';
 import { runCveReportingList, runCveReportingCreate, runCveReportingUpdate } from './cve-reporting.js';
@@ -162,30 +160,6 @@ export default function registerSettingsCommands(program, { runCmd }) {
       instructionType: opts.type,
       instructionId: opts.instructionId,
     })));
-
-  // ── slack channels ─────────────────────────────────────────────────────────
-  settings
-    .command('slack-channels')
-    .description('List all available Slack channels')
-    .action(() => runCmd(() => runSlackChannels()));
-
-  // ── slack channel get ──────────────────────────────────────────────────────
-  settings
-    .command('slack-channel-get')
-    .description('Get saved Slack channel configuration')
-    .action(() => runCmd(() => runSlackChannelGet()));
-
-  // ── teams channels ─────────────────────────────────────────────────────────
-  settings
-    .command('teams-channels')
-    .description('List all available Microsoft Teams channels')
-    .action(() => runCmd(() => runTeamsChannels()));
-
-  // ── teams channel get ──────────────────────────────────────────────────────
-  settings
-    .command('teams-channel-get')
-    .description('Get saved Microsoft Teams channel configuration')
-    .action(() => runCmd(() => runTeamsChannelGet()));
 
   // ── recurring-scans list ───────────────────────────────────────────────────
   settings
