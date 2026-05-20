@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node src/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "mcpb:build": "node scripts/build-mcpb.mjs"
   },
   "keywords": [
     "cli",
@@ -40,6 +41,7 @@
   ],
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.1",
     "azure-devops-node-api": "^15.1.2",
     "bitbucket": "^2.12.0",
@@ -49,7 +51,8 @@
     "open": "^10.1.0",
     "posthog-node": "^5.28.5",
     "react": "^18.3.1",
-    "smol-toml": "^1.6.1"
+    "smol-toml": "^1.6.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "vitest": "^1.6.1"

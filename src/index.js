@@ -397,6 +397,15 @@ program
   // ─── Settings commands ───
   registerSettingsCommands(program, { runCmd });
 
+  // ─── MCP server (for Claude Code plugin and other MCP clients) ───
+  program
+    .command('mcp')
+    .description('Run the CodeAnt MCP server over stdio (used by Claude Code plugin)')
+    .action(async () => {
+      const { startMcpServer } = await import('./mcp/server.js');
+      await startMcpServer();
+    });
+
   // ─── Telemetry control ───
   program
     .command('set-telemetry <enabled>')
