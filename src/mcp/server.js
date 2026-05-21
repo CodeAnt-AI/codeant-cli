@@ -12,6 +12,8 @@ import { runDismissed } from '../commands/scans/dismissed.js';
 import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
+import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
+import { getConfigValue } from '../utils/config.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -63,7 +65,26 @@ async function captureStdout(fn) {
   return chunks.join('');
 }
 
+async function ensureAuthenticated() {
+  const envToken = process.env.CODEANT_API_TOKEN;
+  if (envToken && envToken.trim()) return;
+  if (isAlreadyLoggedIn()) {
+    process.env.CODEANT_API_TOKEN = getConfigValue('apiKeyV2');
+    return;
+  }
+
+  console.error('[codeant-mcp] No API token configured — opening browser for sign-in.');
+  try {
+    const { loginUrl } = await runLoginFlow();
+    console.error(`[codeant-mcp] Login complete. (URL was ${loginUrl})`);
+  } catch (err) {
+    console.error(`[codeant-mcp] Login failed: ${err.message}. The server will start anyway; call the codeant_login tool to retry.`);
+  }
+}
+
 export async function startMcpServer() {
+  await ensureAuthenticated();
+
   const server = new McpServer({ name: 'codeant', version: pkg.version });
   const readOnly = isReadOnly();
 
@@ -366,6 +387,29 @@ export async function startMcpServer() {
           onFilesReady: () => {},
         });
         return ok(result);
+      } catch (err) { return fail(err); }
+    }
+  );
+
+  // ─── Auth (always registered — login is needed even in read-only mode) ───
+  server.registerTool(
+    'codeant_login',
+    {
+      title: 'Sign in to CodeAnt AI',
+      description: 'Opens app.codeant.ai in the user\'s browser and waits up to 10 minutes for them to complete sign-in. Tell the user to check their browser and finish the flow there. On success the API token is saved to ~/.codeant/config.json (apiKeyV2) and set on the running MCP process, so subsequent tool calls are authenticated without restart. Returns { alreadyLoggedIn: true } immediately if a token is already configured, unless `force` is true.',
+      inputSchema: {
+        force: z.boolean().optional().describe('Re-authenticate even if a token is already configured. Default false.'),
+      },
+      annotations: { ...WRITE_NON_DESTRUCTIVE, idempotentHint: true },
+    },
+    async ({ force }) => {
+      try {
+        if (!force && isAlreadyLoggedIn()) {
+          return ok({ alreadyLoggedIn: true });
+        }
+        const { token, loginUrl } = await runLoginFlow();
+        const masked = token ? `${token.slice(0, 8)}…` : null;
+        return ok({ status: 'success', loginUrl, token: masked });
       } catch (err) { return fail(err); }
     }
   );
