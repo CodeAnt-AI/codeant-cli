@@ -1,0 +1,40 @@
+name: Publish MCPB Bundle
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish-mcpb:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - id: version
+        run: echo "version=$(jq -r .version mcpb/manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+
+      - run: npm run mcpb:build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mcpb-v${{ steps.version.outputs.version }}
+          name: CodeAnt MCPB v${{ steps.version.outputs.version }}
+          files: dist/codeant.mcpb
+          fail_on_unmatched_files: true
+          body: |
+            CodeAnt MCPB bundle v${{ steps.version.outputs.version }}
+
+            Commit: ${{ github.sha }}
+            Message: ${{ github.event.head_commit.message }}
+
+            Install instructions: https://github.com/CodeAnt-AI/codeant-cli/blob/main/mcp.md

@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "codeant",
   "display_name": "CodeAnt AI",
-  "version": "0.6.0",
+  "version": "0.5.0",
   "description": "Drive CodeAnt AI security scans and code review from Claude — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
   "long_description": "CodeAnt AI inside Claude. Ask things like \"how many critical SAST findings do I have across my org?\", \"show every exposed secret in payments-service\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 11 read-only tools (orgs, repos, scan history, scan metadata, findings, dismissed alerts, PRs, comments, comment search, local review) and 2 opt-in write tools (trigger a scan, resolve a PR conversation) gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai and grab an API key from your settings page.",
   "author": {
