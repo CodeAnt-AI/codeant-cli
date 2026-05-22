@@ -1,0 +1,93 @@
+{
+  "manifest_version": "0.3",
+  "name": "codeant",
+  "display_name": "CodeAnt AI",
+  "version": "0.5.0",
+  "description": "Drive CodeAnt AI security scans and code review from Claude — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
+  "long_description": "CodeAnt AI inside Claude. Ask things like \"how many critical SAST findings do I have across my org?\", \"show every exposed secret in payments-service\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 11 read-only tools (orgs, repos, scan history, scan metadata, findings, dismissed alerts, PRs, comments, comment search, local review) and 2 opt-in write tools (trigger a scan, resolve a PR conversation) gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai and grab an API key from your settings page.",
+  "author": {
+    "name": "CodeAnt AI",
+    "email": "support@codeant.ai",
+    "url": "https://codeant.ai"
+  },
+  "homepage": "https://codeant.ai",
+  "documentation": "https://docs.codeant.ai/cli/claude-code-plugin",
+  "support": "https://docs.codeant.ai/support",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CodeAnt-AI/codeant-cli"
+  },
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "security",
+    "secrets",
+    "sast",
+    "sca",
+    "static-analysis",
+    "pull-requests"
+  ],
+  "privacy_policies": [
+    "https://codeant.ai/privacy"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "CODEANT_API_TOKEN": "${user_config.api_token}",
+        "CODEANT_API_URL": "${user_config.base_url}",
+        "CODEANT_READ_ONLY": "${user_config.read_only}"
+      }
+    }
+  },
+  "compatibility": {
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  },
+  "tools_generated": false,
+  "tools": [
+    { "name": "codeant_scans_orgs", "description": "List the CodeAnt organizations the current user is authenticated to." },
+    { "name": "codeant_scans_repos", "description": "List repositories connected to CodeAnt for an organization." },
+    { "name": "codeant_scans_history", "description": "Show recent scan runs for a single repository." },
+    { "name": "codeant_scans_get", "description": "Get summary metadata for a single scan (no findings)." },
+    { "name": "codeant_scans_results", "description": "Fetch full findings (SAST, SCA, secrets, IaC, etc.) for a scan." },
+    { "name": "codeant_scans_dismissed", "description": "List dismissed alerts for a repository." },
+    { "name": "codeant_pr_list", "description": "List pull requests / merge requests across GitHub, GitLab, Bitbucket, Azure DevOps." },
+    { "name": "codeant_pr_get", "description": "Fetch detailed information for a single PR/MR." },
+    { "name": "codeant_pr_comments", "description": "List comments on a PR/MR with optional filters." },
+    { "name": "codeant_comments_search", "description": "Search across CodeAnt review comments by free-text query." },
+    { "name": "codeant_review_local", "description": "Run a CodeAnt AI review on local working-copy changes." },
+    { "name": "codeant_login", "description": "Open app.codeant.ai in the browser and poll until the user completes sign-in; saves the resulting API token." },
+    { "name": "codeant_scans_start", "description": "Trigger a new scan run (write — gated behind read_only=false)." },
+    { "name": "codeant_pr_resolve", "description": "Resolve a PR conversation thread (write — gated behind read_only=false)." }
+  ],
+  "user_config": {
+    "api_token": {
+      "type": "string",
+      "title": "CodeAnt API token",
+      "description": "Optional. Leave blank and run the `codeant_login` tool to sign in through your browser instead. Otherwise paste a token from your CodeAnt account settings at app.codeant.ai.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "base_url": {
+      "type": "string",
+      "title": "API base URL",
+      "description": "Override only if you are on a self-hosted CodeAnt instance.",
+      "required": false,
+      "default": "https://api.codeant.ai"
+    },
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only mode",
+      "description": "When enabled, write tools (trigger scan, resolve PR thread) are hidden. Recommended.",
+      "required": false,
+      "default": true
+    }
+  }
+}

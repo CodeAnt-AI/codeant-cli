@@ -236,6 +236,24 @@ node src/index.js secrets --last-commit
 node src/index.js secrets --all
 ```
 
+## MCP / Claude Connector
+
+This package also ships an MCP (Model Context Protocol) server that exposes CodeAnt's scan, review, and PR data as tools to Claude and other MCP clients. The same source tree is packaged as a Desktop Extension (`.mcpb`) for one-click install in Claude Desktop.
+
+See [mcp.md](mcp.md) for the tools listing, install paths (Claude Code CLI, Claude Desktop manual config, MCPB double-click), and bundling/submission instructions.
+
+## Privacy Policy
+
+Full policy: **https://codeant.ai/privacy**
+
+Summary of what this CLI / MCP server sends and stores:
+
+- **Data sent to CodeAnt servers.** Authentication tokens, repository metadata (org, repo, branch, PR identifiers), and — for local review and secrets scanning — the code snippets and diffs you explicitly ask CodeAnt to scan. Nothing is sent on its own; every call is in response to a command you run or a tool Claude invokes.
+- **Where it is stored.** On CodeAnt's infrastructure (https://api.codeant.ai or your self-hosted instance). Locally, the auth token is cached in `~/.codeant/config.json` on your machine.
+- **Third-party sharing.** None beyond CodeAnt's own infrastructure. CodeAnt does not sell or share your data with third parties for marketing.
+- **Retention.** Scan findings and PR data are retained per the CodeAnt account's retention policy (see the privacy URL above). Local config persists until you run `codeant logout` or delete `~/.codeant/config.json`.
+- **Contact.** support@codeant.ai
+
 ## License
 
 MIT

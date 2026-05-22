@@ -1,0 +1,37 @@
+{
+  "name": "codeant-cli",
+  "owner": {
+    "name": "CodeAnt AI",
+    "email": "support@codeant.ai"
+  },
+  "metadata": {
+    "description": "CodeAnt AI CLI and MCP server — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review inside Claude.",
+    "version": "0.4.14"
+  },
+  "plugins": [
+    {
+      "name": "codeant",
+      "source": "./.",
+      "description": "Drive CodeAnt AI from inside Claude Code via the CodeAnt MCP server. Read-only by default; write tools (trigger scan, resolve PR thread) gated behind CODEANT_READ_ONLY=0.",
+      "version": "0.4.14",
+      "author": {
+        "name": "CodeAnt AI",
+        "email": "support@codeant.ai"
+      },
+      "homepage": "https://codeant.ai",
+      "repository": "https://github.com/CodeAnt-AI/codeant-cli",
+      "license": "MIT",
+      "keywords": [
+        "code-review",
+        "pull-requests",
+        "security",
+        "secrets",
+        "sast",
+        "sca",
+        "static-analysis",
+        "mcp"
+      ],
+      "category": "code-quality"
+    }
+  ]
+}

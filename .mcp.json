@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codeant": {
+      "command": "codeant",
+      "args": ["mcp"],
+      "env": {
+        "CODEANT_READ_ONLY": "1"
+      }
+    }
+  }
+}
