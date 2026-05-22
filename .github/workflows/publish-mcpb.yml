@@ -19,11 +19,17 @@ jobs:
           node-version: '20'
 
       - id: version
-        run: echo "version=$(jq -r .version mcpb/manifest.json)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
       - run: npm run mcpb:build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeant-mcpb-v${{ steps.version.outputs.version }}
+          path: dist/codeant.mcpb
+          if-no-files-found: error
 
       - uses: softprops/action-gh-release@v2
         with:

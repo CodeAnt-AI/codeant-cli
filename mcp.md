@@ -170,14 +170,15 @@ npm run mcpb:build
 
 CodeAnt's MCP server uses stdio + a packaged bundle, so the submission route is **Desktop Extensions (MCPB)**, not the remote-connector form.
 
-- **Submission URL:** https://clau.de/desktop-extention-submission
+- **Submission URL:** https://claude.com/docs/connectors/building/submission
 - **Bundle:** upload `dist/codeant.mcpb`
 - **Required metadata:** already in [mcpb/manifest.json](mcpb/manifest.json) — display name, description, author, homepage, documentation, repository, license, keywords, `privacy_policies`, `tools` static listing, `user_config` schema.
+- **Privacy policy.** Linked from both [README.md](README.md#privacy-policy) and the manifest's `privacy_policies` field (`https://codeant.ai/privacy`).
 
 Reviewer notes worth preparing:
 
 - **Auth model.** CodeAnt uses a user-scoped API token entered into `user_config.api_token`. The token never leaves the user's machine — the bundle talks to `api.codeant.ai` (or the user's self-hosted URL) directly. No third-party OAuth flow needed.
-- **Sandbox creds.** Provide a test account + token so reviewers can exercise the read tools.
+- **Sandbox creds.** Email support@codeant.ai for a reviewer sandbox token; paste it into the submission form's reviewer-notes field along with an org slug that has scans + PRs to browse.
 - **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start` / `codeant_pr_resolve`.
 
 ---

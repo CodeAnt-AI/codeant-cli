@@ -1,25 +1,55 @@
-name: Publish Package
+name: Build CLI Release
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  publish:
+  build-cli:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+
+      - id: version
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm pack
+        # produces codeant-cli-<version>.tgz in the working directory
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeant-cli-v${{ steps.version.outputs.version }}
+          path: codeant-cli-${{ steps.version.outputs.version }}.tgz
+          if-no-files-found: error
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cli-v${{ steps.version.outputs.version }}
+          name: CodeAnt CLI v${{ steps.version.outputs.version }}
+          files: codeant-cli-${{ steps.version.outputs.version }}.tgz
+          fail_on_unmatched_files: true
+          body: |
+            CodeAnt CLI npm tarball v${{ steps.version.outputs.version }}
+
+            Commit: ${{ github.sha }}
+            Message: ${{ github.event.head_commit.message }}
+
+            ## Publish to npm
+
+            Download the `.tgz` and run:
+
+            ```
+            npm publish codeant-cli-${{ steps.version.outputs.version }}.tgz --access public
+            ```
+
+            (Requires npm auth with publish rights on the `codeant-cli` package.)
