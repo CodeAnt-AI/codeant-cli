@@ -75,8 +75,8 @@ async function ensureAuthenticated() {
 
   console.error('[codeant-mcp] No API token configured — opening browser for sign-in.');
   try {
-    const { loginUrl } = await runLoginFlow();
-    console.error(`[codeant-mcp] Login complete. (URL was ${loginUrl})`);
+    await runLoginFlow();
+    console.error('[codeant-mcp] Login complete.');
   } catch (err) {
     console.error(`[codeant-mcp] Login failed: ${err.message}. The server will start anyway; call the codeant_login tool to retry.`);
   }
@@ -404,7 +404,8 @@ export async function startMcpServer() {
     },
     async ({ force }) => {
       try {
-        if (!force && isAlreadyLoggedIn()) {
+        const envToken = process.env.CODEANT_API_TOKEN;
+        if (!force && ((envToken && envToken.trim()) || isAlreadyLoggedIn())) {
           return ok({ alreadyLoggedIn: true });
         }
         const { token, loginUrl } = await runLoginFlow();
