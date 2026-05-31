@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.5.1] - 31/05/2026
+- AI code review increasing coverage
+
 ## [0.4.12] - 19/05/2026
 - Settings added
 
