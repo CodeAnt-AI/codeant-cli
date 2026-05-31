@@ -125,27 +125,34 @@ export async function runReviewHeadless(options = {}) {
     // ── Split into per-file requests ────────────────────────────────────
     const perFileRequests = ReviewApiHelper.splitIntoPerFileRequests(requestBody);
 
-    onProgress(`Analyzing ${perFileRequests.length} file${perFileRequests.length !== 1 ? 's' : ''} in parallel...`);
+    const totalFiles = perFileRequests.reduce((n, r) => n + (r._filenames?.length || 0), 0);
+    onProgress(`Analyzing ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`);
 
-    // ── Per-file agent turn loops (parallel, fault-tolerant) ─────────────
+    // ── Per-batch agent turn loops (parallel, fault-tolerant) ────────────
+    // Each batch covers up to 5 files; backend reviews the multi-file diff
+    // in a single session (matches pragent's FileBatcher).
     const perFileResults = await Promise.all(
       perFileRequests.map(async (fileReq) => {
-        const filename = fileReq._filename;
-        delete fileReq._filename;
+        const filenames = fileReq._filenames || [];
+        delete fileReq._filenames;
+        const label = filenames.join(', ');
 
-        if (fileReq.file_contents?.[filename]) {
-          fileReq.file_content = fileReq.file_contents[filename];
-          fileReq.file_path = filename;
+        // Single-file batch: still pass file_content/file_path so backend can
+        // build head_file_str. Multi-file batches drop these (head_file_str
+        // becomes empty; agent gathers context via tools instead).
+        if (filenames.length === 1 && fileReq.file_contents?.[filenames[0]]) {
+          fileReq.file_content = fileReq.file_contents[filenames[0]];
+          fileReq.file_path = filenames[0];
         }
         delete fileReq.file_contents;
 
         try {
-          onProgress(`Reviewing ${filename}...`);
+          onProgress(`Reviewing ${label}...`);
           const result = await runTurnLoop(fileReq, gitRoot, false);
-          onProgress(`Done reviewing ${filename}`);
+          onProgress(`Done reviewing ${label}`);
           return result;
         } catch (err) {
-          console.error(`[error] Failed to review ${filename}: ${err.message}`);
+          console.error(`[error] Failed to review ${label}: ${err.message}`);
           return { finalMessage: null, finalOutput: null };
         }
       })
@@ -158,7 +165,12 @@ export async function runReviewHeadless(options = {}) {
       output: perFileResults[i].finalOutput,
     })).filter(r => r.output?.code_suggestions?.length > 0);
 
-    onProgress(`${perFileWithSuggestions.length} file(s) have suggestions, running reflector...`);
+    const filesWithSuggestions = new Set(
+      perFileWithSuggestions.flatMap(r =>
+        (r.output?.code_suggestions || []).map(s => (s.relevant_file || '').trim()).filter(Boolean)
+      )
+    ).size;
+    onProgress(`${filesWithSuggestions} file${filesWithSuggestions !== 1 ? 's' : ''} have suggestions, running reflector...`);
 
     // ── Per-file reflector loops (parallel, fault-tolerant) ──────────────
     const reflectorResults = await Promise.all(
@@ -180,15 +192,34 @@ export async function runReviewHeadless(options = {}) {
       })
     );
 
-    // ── Parse results ───────────────────────────────────────────────────
-    const issues = reflectorResults.flatMap(r =>
-      (r.finalOutput?.code_suggestions || []).map((issue) => ({
+    // ── Parse results, carrying generator labels through reflector ──────
+    // Pragent's rejector schema drops `label`; preserve it by matching the
+    // reflector's per-issue (file, start_line) back to the generator's output.
+    const issues = reflectorResults.flatMap((r, i) => {
+      const genSuggestions = perFileWithSuggestions[i]?.output?.code_suggestions || [];
+      const norm = (v) => (typeof v === 'string' ? v.trim() : v);
+      const labelFor = (issue) => {
+        if (norm(issue.label)) return norm(issue.label);
+        // Match by summary (pragent's primary strategy): rejector's
+        // suggestion_summary (renamed to issue_content server-side) is
+        // "Repeated from the input" — i.e. the generator's one_sentence_summary.
+        const summary = norm(issue.issue_content);
+        if (summary) {
+          const exact = genSuggestions.find(g => norm(g.one_sentence_summary) === summary);
+          if (norm(exact?.label)) return norm(exact.label);
+        }
+        // Fallback: first generator suggestion in the same file with a label.
+        const file = norm(issue.relevant_file);
+        const sameFile = genSuggestions.find(g => norm(g.relevant_file) === file && norm(g.label));
+        return norm(sameFile?.label) || 'Code Quality';
+      };
+      return (r.finalOutput?.code_suggestions || []).map((issue) => ({
         issue_content: issue.issue_content || '',
         relevant_file: issue.relevant_file || 'Unknown',
         start_line: issue.start_line || 0,
-        label: issue.label || 'Code Quality',
-      }))
-    );
+        label: labelFor(issue),
+      }));
+    });
 
     const labelCounts = {};
     for (const i of issues) { labelCounts[i.label] = (labelCounts[i.label] || 0) + 1; }

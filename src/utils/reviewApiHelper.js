@@ -265,33 +265,39 @@ class ReviewApiHelper extends CommonApiHelper {
   }
 
   /**
-   * Split a combined review request into per-file payloads.
-   * Each payload has a single file's diff and content.
+   * Split a combined review request into batched payloads.
+   * Files are grouped in chunks of up to FILES_PER_BATCH so each backend
+   * session reviews multiple files at once (matches pragent's batching).
    */
-  static splitIntoPerFileRequests(requestBody) {
+  static splitIntoPerFileRequests(requestBody, batchSize = 5) {
     if (!requestBody?.diff_content?.length) return [];
 
     const fileSections = requestBody.diff_content.split(/(?=^diff --git )/m).filter(Boolean);
-    const perFileRequests = [];
+    const perFile = [];
 
     for (const section of fileSections) {
       const nameMatch = section.match(/^diff --git a\/.+ b\/(.+)$/m);
       if (!nameMatch) continue;
-      const filename = nameMatch[1];
+      perFile.push({ section, filename: nameMatch[1] });
+    }
 
+    const batches = [];
+    for (let i = 0; i < perFile.length; i += batchSize) {
+      const slice = perFile.slice(i, i + batchSize);
       const fileContents = {};
-      if (requestBody.file_contents?.[filename]) {
-        fileContents[filename] = requestBody.file_contents[filename];
+      for (const { filename } of slice) {
+        if (requestBody.file_contents?.[filename]) {
+          fileContents[filename] = requestBody.file_contents[filename];
+        }
       }
-
-      perFileRequests.push({
-        diff_content: section,
+      batches.push({
+        diff_content: slice.map((f) => f.section).join(''),
         file_contents: fileContents,
-        _filename: filename,
+        _filenames: slice.map((f) => f.filename),
       });
     }
 
-    return perFileRequests;
+    return batches;
   }
 }
 
