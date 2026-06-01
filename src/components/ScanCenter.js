@@ -190,7 +190,7 @@ export default function ScanCenter({ filterDismissed = false, includeFalsePositi
 
   // ── Step 3: repo selected → fetch scan history ──
   const handleSelectRepo = (item) =>
-    _handleSelectRepo({ STEPS, item, setSelectedRepo, setStep, setLoadingMsg, setError, setScanHistory });
+    _handleSelectRepo({ STEPS, item, selectedConnection, setSelectedRepo, setStep, setLoadingMsg, setError, setScanHistory });
 
   // ── Step 4: scan selected → show result type menu ──
   const handleSelectScan = (item) =>

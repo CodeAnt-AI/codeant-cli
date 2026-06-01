@@ -1,9 +1,15 @@
 import { getScanHistory } from '../scans/getScanHistory.js';
 
-export async function handleSelectRepo({ STEPS, item, setSelectedRepo, setStep, setLoadingMsg, setError, setScanHistory }) {
+export async function handleSelectRepo({ STEPS, item, selectedConnection, setSelectedRepo, setStep, setLoadingMsg, setError, setScanHistory }) {
   setSelectedRepo(item.value);
   setStep(STEPS.LOADING);
-  const repoFullName = item.value.full_name || item.value.name;
+  const orgName = selectedConnection?.organizationName;
+  const repoName = item.value.name;
+  const repoFullName = item.value.full_name || (orgName && repoName ? `${orgName}/${repoName}` : repoName);
+  if (!repoFullName || !repoFullName.includes('/')) {
+    setError(`Cannot resolve repository in org/repo form (got "${repoFullName}")`, STEPS.SELECT_REPO);
+    return;
+  }
   setLoadingMsg(`Loading scan history for ${repoFullName}…`);
   const res = await getScanHistory(repoFullName);
   if (!res.success) {
