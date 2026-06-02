@@ -4,7 +4,7 @@
   "display_name": "CodeAnt AI",
   "version": "0.5.0",
   "description": "Drive CodeAnt AI security scans and code review from Claude — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
-  "long_description": "CodeAnt AI inside Claude. Ask things like \"how many critical SAST findings do I have across my org?\", \"show every exposed secret in payments-service\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 11 read-only tools (orgs, repos, scan history, scan metadata, findings, dismissed alerts, PRs, comments, comment search, local review) and 2 opt-in write tools (trigger a scan, resolve a PR conversation) gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai and grab an API key from your settings page.",
+  "long_description": "CodeAnt AI inside Claude. Ask things like \"how many critical SAST findings do I have across my org?\", \"show every exposed secret in payments-service\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 11 read-only tools (orgs, repos, scan history, scan metadata, findings, dismissed alerts, PRs, comments, comment search, local review) and 2 opt-in write tools (trigger a scan, resolve a PR conversation) gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai and grab an API key from your settings page.\n\nCollects anonymous usage telemetry via PostHog by default; set CODEANT_TELEMETRY_DISABLED=1 to opt out.",
   "author": {
     "name": "CodeAnt AI",
     "email": "support@codeant.ai",
@@ -28,7 +28,7 @@
     "pull-requests"
   ],
   "privacy_policies": [
-    "https://codeant.ai/privacy"
+    "https://www.codeant.ai/privacy-policy"
   ],
   "icon": "icon.png",
   "server": {
@@ -40,7 +40,15 @@
       "env": {
         "CODEANT_API_TOKEN": "${user_config.api_token}",
         "CODEANT_API_URL": "${user_config.base_url}",
-        "CODEANT_READ_ONLY": "${user_config.read_only}"
+        "CODEANT_READ_ONLY": "${user_config.read_only}",
+        "GITHUB_TOKEN": "${user_config.github_token}",
+        "GITLAB_TOKEN": "${user_config.gitlab_token}",
+        "BITBUCKET_TOKEN": "${user_config.bitbucket_token}",
+        "AZURE_DEVOPS_TOKEN": "${user_config.azure_devops_token}",
+        "GITHUB_API_URL": "${user_config.github_api_url}",
+        "GITLAB_URL": "${user_config.gitlab_url}",
+        "BITBUCKET_URL": "${user_config.bitbucket_url}",
+        "AZURE_DEVOPS_ORG_URL": "${user_config.azure_devops_org_url}"
       }
     }
   },
@@ -88,6 +96,66 @@
       "description": "When enabled, write tools (trigger scan, resolve PR thread) are hidden. Recommended.",
       "required": false,
       "default": true
+    },
+    "github_token": {
+      "type": "string",
+      "title": "GitHub token",
+      "description": "Personal access token for GitHub. Also accepts the GH_TOKEN environment variable. Leave blank to fall back to the gh CLI.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "gitlab_token": {
+      "type": "string",
+      "title": "GitLab token",
+      "description": "Personal access token for GitLab. Leave blank to fall back to the glab CLI.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "bitbucket_token": {
+      "type": "string",
+      "title": "Bitbucket token",
+      "description": "App password or access token for Bitbucket.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "azure_devops_token": {
+      "type": "string",
+      "title": "Azure DevOps token",
+      "description": "Personal access token for Azure DevOps. Also accepts AZURE_DEVOPS_PAT.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "github_api_url": {
+      "type": "string",
+      "title": "GitHub API URL",
+      "description": "Override for GitHub Enterprise Server (e.g. https://github.example.com/api/v3). Leave blank for GitHub.com.",
+      "required": false,
+      "default": ""
+    },
+    "gitlab_url": {
+      "type": "string",
+      "title": "GitLab URL",
+      "description": "Override for a self-hosted GitLab instance (e.g. https://gitlab.example.com). Leave blank for GitLab.com.",
+      "required": false,
+      "default": ""
+    },
+    "bitbucket_url": {
+      "type": "string",
+      "title": "Bitbucket URL",
+      "description": "Override for a self-hosted Bitbucket Server instance. Leave blank for Bitbucket Cloud.",
+      "required": false,
+      "default": ""
+    },
+    "azure_devops_org_url": {
+      "type": "string",
+      "title": "Azure DevOps organization URL",
+      "description": "Full URL to your Azure DevOps organization (e.g. https://dev.azure.com/myorg).",
+      "required": false,
+      "default": ""
     }
   }
 }
