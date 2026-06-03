@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import { assertInsideCwd } from './pathUtils.js';
 
 export async function readTool(args, cwd) {
   const filePath = path.resolve(cwd, args.file_path);
+  assertInsideCwd(filePath, cwd);
   const content = await fs.promises.readFile(filePath, 'utf8');
   const lines = content.split('\n');
   const offset = args.offset || 1;

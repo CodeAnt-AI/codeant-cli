@@ -23,6 +23,7 @@ Thumbs.db
 # Build output
 dist/
 build/
+tmp/
 
 # Yarn lock (if using npm)
 yarn.lock

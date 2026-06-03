@@ -17,14 +17,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - run: npm pack
-        # produces codeant-cli-<version>.tgz in the working directory
 
       - uses: actions/upload-artifact@v4
         with:
@@ -43,13 +47,3 @@ jobs:
 
             Commit: ${{ github.sha }}
             Message: ${{ github.event.head_commit.message }}
-
-            ## Publish to npm
-
-            Download the `.tgz` and run:
-
-            ```
-            npm publish codeant-cli-${{ steps.version.outputs.version }}.tgz --access public
-            ```
-
-            (Requires npm auth with publish rights on the `codeant-cli` package.)
