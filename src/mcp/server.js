@@ -13,7 +13,7 @@ import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
 import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
-import { getConfigValue } from '../utils/config.js';
+import { getConfigValue, setConfigValue } from '../utils/config.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -405,6 +405,24 @@ export async function startMcpServer() {
         const { token, loginUrl } = await runLoginFlow();
         const masked = token ? `${token.slice(0, 8)}…` : null;
         return ok({ status: 'success', loginUrl, token: masked });
+      } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_logout',
+    {
+      title: 'Sign out of CodeAnt AI',
+      description: 'Clears the saved API token from ~/.codeant/config.json and unsets CODEANT_API_TOKEN on the running MCP process. Returns { wasLoggedIn: false } immediately if no token was configured.',
+      inputSchema: {},
+      annotations: { ...WRITE_NON_DESTRUCTIVE, idempotentHint: true },
+    },
+    async () => {
+      try {
+        const wasLoggedIn = !!(process.env.CODEANT_API_TOKEN?.trim() || getConfigValue('apiKeyV2'));
+        setConfigValue('apiKeyV2', null);
+        delete process.env.CODEANT_API_TOKEN;
+        return ok({ wasLoggedIn, status: wasLoggedIn ? 'logged_out' : 'not_logged_in' });
       } catch (err) { return fail(err); }
     }
   );
