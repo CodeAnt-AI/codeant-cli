@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "codeant",
   "display_name": "CodeAnt AI",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Drive CodeAnt AI security scans and code review from Claude — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
   "long_description": "CodeAnt AI inside Claude. Ask things like \"how many critical SAST findings do I have across my org?\", \"show every exposed secret in payments-service\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 11 read-only tools (orgs, repos, scan history, scan metadata, findings, dismissed alerts, PRs, comments, comment search, local review) and 2 opt-in write tools (trigger a scan, resolve a PR conversation) gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai. To authenticate, call the `codeant_login` tool — it opens the CodeAnt sign-in page in your browser and saves the token automatically.\n\nCollects anonymous usage telemetry via PostHog by default; set CODEANT_TELEMETRY_DISABLED=1 to opt out.",
   "author": {
@@ -71,6 +71,7 @@
     { "name": "codeant_comments_search", "description": "Search across CodeAnt review comments by free-text query." },
     { "name": "codeant_review_local", "description": "Run a CodeAnt AI review on local working-copy changes." },
     { "name": "codeant_login", "description": "Open app.codeant.ai in the browser and poll until the user completes sign-in; saves the resulting API token." },
+    { "name": "codeant_logout", "description": "Clear the saved API token and sign out of CodeAnt AI." },
     { "name": "codeant_scans_start", "description": "Trigger a new scan run (write — gated behind read_only=false)." },
     { "name": "codeant_pr_resolve", "description": "Resolve a PR conversation thread (write — gated behind read_only=false)." }
   ],
