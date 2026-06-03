@@ -1,16 +1,15 @@
-name: Build CLI Release
+name: Publish Package
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
-  build-cli:
+  publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -19,31 +18,8 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - id: version
-        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
-
       - run: npm ci
 
       - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - run: npm pack
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: codeant-cli-v${{ steps.version.outputs.version }}
-          path: codeant-cli-${{ steps.version.outputs.version }}.tgz
-          if-no-files-found: error
-
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: cli-v${{ steps.version.outputs.version }}
-          name: CodeAnt CLI v${{ steps.version.outputs.version }}
-          files: codeant-cli-${{ steps.version.outputs.version }}.tgz
-          fail_on_unmatched_files: true
-          body: |
-            CodeAnt CLI npm tarball v${{ steps.version.outputs.version }}
-
-            Commit: ${{ github.sha }}
-            Message: ${{ github.event.head_commit.message }}
