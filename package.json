@@ -21,7 +21,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/CodeAnt-AI/codeant-cli"
   },
   "main": "./src/reviewHeadless.js",
   "exports": {
