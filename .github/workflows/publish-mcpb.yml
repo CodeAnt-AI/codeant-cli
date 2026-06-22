@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
@@ -27,20 +27,19 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: codeant-mcpb-v${{ steps.version.outputs.version }}
+          name: codeant-mcp-${{ steps.version.outputs.version }}
           path: dist/codeant.mcpb
           if-no-files-found: error
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: mcpb-v${{ steps.version.outputs.version }}
-          name: CodeAnt MCPB v${{ steps.version.outputs.version }}
+          tag_name: codeant-mcp-${{ steps.version.outputs.version }}
+          name: CodeAnt MCP v${{ steps.version.outputs.version }}
           files: dist/codeant.mcpb
           fail_on_unmatched_files: true
           body: |
-            CodeAnt MCPB bundle v${{ steps.version.outputs.version }}
+            CodeAnt MCP bundle v${{ steps.version.outputs.version }}
 
             Commit: ${{ github.sha }}
-            Message: ${{ github.event.head_commit.message }}
 
             Install instructions: https://github.com/CodeAnt-AI/codeant-cli/blob/main/mcp.md

@@ -70,6 +70,12 @@ async function main() {
     console.log('[build-mcpb] note: mcpb/icon.png not found — directory listing will use the default icon');
   }
 
+  const licenseSrc = join(repoRoot, 'LICENSE');
+  if (await exists(licenseSrc)) {
+    await cp(licenseSrc, join(stageDir, 'LICENSE'));
+    console.log('[build-mcpb] included LICENSE');
+  }
+
   console.log(`[build-mcpb] zipping → ${outPath}`);
   run('zip', ['-r', '-q', outPath, '.'], { cwd: stageDir });
 
