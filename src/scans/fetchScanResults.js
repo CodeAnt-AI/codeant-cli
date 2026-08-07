@@ -70,6 +70,7 @@ export async function fetchScanResults(repo, commitId, resultType, opts = {}) {
       filter_dismissed: filterDismissed,
       include_false_positives: includeFalsePositives,
     });
+    console.error("dropship: ", JSON.stringify(response, null, 2));
 
     if (!response) {
       return { success: false, error: 'Failed to connect to CodeAnt server' };

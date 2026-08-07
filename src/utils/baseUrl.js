@@ -9,4 +9,15 @@ const getBaseUrl = () => {
   return url;
 };
 
-export { getBaseUrl };
+const getDashboardUrl = async () => {
+  try {
+    const response = await fetch(`${getBaseUrl()}/extension/get/dashboard`);
+    // console.log('Fetching dashboard URL from:', `${getBaseUrl()}/extension/get/dashboard`);
+    const data = await response.json();
+    return data.dashboard_url || 'https://app.codeant.ai';
+  } catch {
+    return 'https://app.codeant.ai';
+  }
+};
+
+export { getBaseUrl, getDashboardUrl };

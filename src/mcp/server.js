@@ -390,7 +390,7 @@ export async function startMcpServer() {
     'codeant_login',
     {
       title: 'Sign in to CodeAnt AI',
-      description: 'Opens app.codeant.ai in the user\'s browser and waits up to 10 minutes for them to complete sign-in. Tell the user to check their browser and finish the flow there. On success the API token is saved to ~/.codeant/config.json (apiKeyV2) and set on the running MCP process, so subsequent tool calls are authenticated without restart. Returns { alreadyLoggedIn: true } immediately if a token is already configured, unless `force` is true.',
+      description: 'Opens the configured CodeAnt dashboard in the user\'s browser and waits up to 10 minutes for them to complete sign-in. Tell the user to check their browser and finish the flow there. On success the API token is saved to ~/.codeant/config.json (apiKeyV2) and set on the running MCP process, so subsequent tool calls are authenticated without restart. Returns { alreadyLoggedIn: true } immediately if a token is already configured, unless `force` is true.',
       inputSchema: {
         force: z.boolean().optional().describe('Re-authenticate even if a token is already configured. Default false.'),
       },
