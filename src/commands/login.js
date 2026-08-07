@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Text, Box, useApp } from 'ink';
 import { getConfigValue, setConfigValue } from '../utils/config.js';
-import { getBaseUrl } from '../utils/baseUrl.js';
+import { getBaseUrl, getDashboardUrl } from '../utils/baseUrl.js';
 import { randomUUID } from 'crypto';
 
 const POLL_INTERVAL = 10000; // 10 seconds
@@ -24,49 +24,55 @@ export default function Login() {
 
     const token = randomUUID();
     const baseUrl = getBaseUrl();
-    const loginUrl = `https://app.codeant.ai?ideLoginToken=${token}`;
-    setLoginUrl(loginUrl);
     const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
 
-    // Open browser
-    import('open').then(({ default: open }) => {
-      open(loginUrl);
-      setStatus('waiting');
-    }).catch(() => {
-      // Fallback: just show the URL
-      console.log(`\nOpen this URL in your browser:\n${loginUrl}\n`);
-      setStatus('waiting');
-    });
-
-    // Poll for login status
+    let intervalId;
     let timeoutId;
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(pollUrl);
-        const data = await response.json();
 
-        if (data.status === 'yes') {
-          clearInterval(intervalId);
-          clearTimeout(timeoutId);
+    (async () => {
+      const dashboardUrl = await getDashboardUrl();
+      const loginUrl = `${dashboardUrl}?ideLoginToken=${token}`;
+      setLoginUrl(loginUrl);
 
-          // Save the API key
-          setConfigValue('apiKeyV2', token);
+      // Open browser
+      import('open').then(({ default: open }) => {
+        open(loginUrl);
+        setStatus('waiting');
+      }).catch(() => {
+        // Fallback: just show the URL
+        console.log(`\nOpen this URL in your browser:\n${loginUrl}\n`);
+        setStatus('waiting');
+      });
 
-          setStatus('success');
-          setTimeout(() => exit(), 100);
+      // Poll for login status
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(pollUrl);
+          const data = await response.json();
+
+          if (data.status === 'yes') {
+            clearInterval(intervalId);
+            clearTimeout(timeoutId);
+
+            // Save the API key
+            setConfigValue('apiKeyV2', token);
+
+            setStatus('success');
+            setTimeout(() => exit(), 100);
+          }
+        } catch (err) {
+          // Silently continue polling
         }
-      } catch (err) {
-        // Silently continue polling
-      }
-    }, POLL_INTERVAL);
+      }, POLL_INTERVAL);
 
-    // Timeout after 10 minutes
-    timeoutId = setTimeout(() => {
-      clearInterval(intervalId);
-      setError('Login timed out. Please try again.');
-      setStatus('error');
-      setTimeout(() => exit(new Error('Login timed out')), 100);
-    }, TIMEOUT);
+      // Timeout after 10 minutes
+      timeoutId = setTimeout(() => {
+        clearInterval(intervalId);
+        setError('Login timed out. Please try again.');
+        setStatus('error');
+        setTimeout(() => exit(new Error('Login timed out')), 100);
+      }, TIMEOUT);
+    })();
 
     // Cleanup
     return () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getConfigValue, setConfigValue } from './config.js';
-import { getBaseUrl } from './baseUrl.js';
+import { getBaseUrl, getDashboardUrl } from './baseUrl.js';
 
 const DEFAULT_POLL_INTERVAL = 10_000;
 const DEFAULT_TIMEOUT = 10 * 60 * 1000;
@@ -12,7 +12,8 @@ export function isAlreadyLoggedIn() {
 export async function startLoginFlow() {
   const token = randomUUID();
   const baseUrl = getBaseUrl();
-  const loginUrl = `https://app.codeant.ai?ideLoginToken=${token}`;
+  const dashboardUrl = await getDashboardUrl();
+  const loginUrl = `${dashboardUrl}?ideLoginToken=${token}`;
   const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
 
   let browserOpened = false;
