@@ -266,8 +266,8 @@ class ReviewApiHelper extends CommonApiHelper {
 
   /**
    * Split a combined review request into batched payloads.
-   * Files are grouped in chunks of up to FILES_PER_BATCH so each backend
-   * session reviews multiple files at once (matches pragent's batching).
+   * Files are grouped in chunks of up to FILES_PER_BATCH so each review
+   * session can process multiple files together.
    */
   static splitIntoPerFileRequests(requestBody, batchSize = 5) {
     if (!requestBody?.diff_content?.length) return [];
@@ -280,6 +280,7 @@ class ReviewApiHelper extends CommonApiHelper {
       if (!nameMatch) continue;
       perFile.push({ section, filename: nameMatch[1] });
     }
+    perFile.sort((a, b) => (a.filename < b.filename ? -1 : a.filename > b.filename ? 1 : 0));
 
     const batches = [];
     for (let i = 0; i < perFile.length; i += batchSize) {

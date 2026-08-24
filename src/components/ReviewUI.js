@@ -180,7 +180,7 @@ export function renderFetchingDiff(startTime) {
 }
 
 export function renderReviewing(currentMessage, startTime, meta) {
-  const step = currentMessage?.toLowerCase().includes('reflector') ? 3 : 2;
+  const step = currentMessage?.toLowerCase().includes('rejector') ? 3 : 2;
   return React.createElement(ReviewLoading, {
     message: currentMessage || 'Analyzing code...',
     step,

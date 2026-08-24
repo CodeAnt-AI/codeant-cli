@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3] - 24/08/2026
+- Improved consistency between interactive and headless local reviews
+- Added shared multi-file planning and verification before returning findings
+- Increased local review coverage to 15 files, processed in batches of up to five
+
+## [0.5.2] - 07/08/2026
+- Use the configured CodeAnt dashboard URL during login
+
 ## [0.5.1] - 31/05/2026
 - AI code review increasing coverage
 

@@ -7,12 +7,13 @@ import { track } from './utils/analytics.js';
 const MAX_TURNS = 5;
 
 /**
- * Run a single agent turn loop (per-file or reflector).
+ * Run a single agent turn loop (planner, generator, or rejector).
  */
-async function runTurnLoop(initialPayload, gitRoot, isReflectorLoop) {
+async function runTurnLoop(initialPayload, gitRoot, isRejectorLoop) {
   let nextPayload = initialPayload;
   let finalMessage = null;
   let finalOutput = null;
+  let rejectorInput = null;
 
   for (let turn = 0; turn < MAX_TURNS; turn += 1) {
     const resp = await fetchApi('/extension/pr-review/agent/turn', 'POST', nextPayload);
@@ -31,10 +32,11 @@ async function runTurnLoop(initialPayload, gitRoot, isReflectorLoop) {
 
     finalMessage = assistantMsg;
     if (resp.output) finalOutput = resp.output;
+    if (resp.rejector_input) rejectorInput = resp.rejector_input;
 
     if (done) {
-      if (isReflectorLoop && resp.parsing_error) {
-        console.error('Warning: parsing error in reflector response');
+      if (isRejectorLoop && resp.parsing_error) {
+        console.error('Warning: parsing error in rejector response');
       }
       break;
     }
@@ -52,7 +54,7 @@ async function runTurnLoop(initialPayload, gitRoot, isReflectorLoop) {
     nextPayload = { session_id: sessionId, tool_results: toolResults };
   }
 
-  return { finalMessage, finalOutput };
+  return { finalMessage, finalOutput, rejectorInput };
 }
 
 /**
@@ -126,29 +128,38 @@ export async function runReviewHeadless(options = {}) {
     const perFileRequests = ReviewApiHelper.splitIntoPerFileRequests(requestBody);
 
     const totalFiles = perFileRequests.reduce((n, r) => n + (r._filenames?.length || 0), 0);
+    let riskHypotheses = '';
+    try {
+      onProgress(`Planning risks across ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`);
+      const plannerResult = await runTurnLoop(
+        {
+          diff_content: requestBody.diff_content,
+          prompt_template_name: 'risk_planner',
+        },
+        gitRoot,
+        false
+      );
+      riskHypotheses = plannerResult.finalOutput?.risk_hypotheses || '';
+    } catch (err) {
+      console.error(`[warning] Risk planner failed; continuing without hypotheses: ${err.message}`);
+    }
     onProgress(`Analyzing ${totalFiles} file${totalFiles !== 1 ? 's' : ''}...`);
 
     // ── Per-batch agent turn loops (parallel, fault-tolerant) ────────────
-    // Each batch covers up to 5 files; backend reviews the multi-file diff
-    // in a single session (matches pragent's FileBatcher).
+    // Each review session covers a batch of up to five files.
     const perFileResults = await Promise.all(
       perFileRequests.map(async (fileReq) => {
         const filenames = fileReq._filenames || [];
-        delete fileReq._filenames;
+        const payload = {
+          ...fileReq,
+          extra_variables: { risk_hypotheses: riskHypotheses },
+        };
+        delete payload._filenames;
         const label = filenames.join(', ');
-
-        // Single-file batch: still pass file_content/file_path so backend can
-        // build head_file_str. Multi-file batches drop these (head_file_str
-        // becomes empty; agent gathers context via tools instead).
-        if (filenames.length === 1 && fileReq.file_contents?.[filenames[0]]) {
-          fileReq.file_content = fileReq.file_contents[filenames[0]];
-          fileReq.file_path = filenames[0];
-        }
-        delete fileReq.file_contents;
 
         try {
           onProgress(`Reviewing ${label}...`);
-          const result = await runTurnLoop(fileReq, gitRoot, false);
+          const result = await runTurnLoop(payload, gitRoot, false);
           onProgress(`Done reviewing ${label}`);
           return result;
         } catch (err) {
@@ -161,65 +172,59 @@ export async function runReviewHeadless(options = {}) {
     // Pair each file's suggestions with its own diff — skip files with no real suggestions
     const perFileWithSuggestions = perFileRequests.map((fileReq, i) => ({
       diff_content: fileReq.diff_content,
-      suggestions: perFileResults[i].finalMessage?.content,
-      output: perFileResults[i].finalOutput,
-    })).filter(r => r.output?.code_suggestions?.length > 0);
+      file_contents: fileReq.file_contents,
+      generator_output: perFileResults[i].finalOutput,
+      rejector_input: perFileResults[i].rejectorInput,
+    })).filter(r => r.generator_output?.code_suggestions?.length > 0);
 
     const filesWithSuggestions = new Set(
       perFileWithSuggestions.flatMap(r =>
-        (r.output?.code_suggestions || []).map(s => (s.relevant_file || '').trim()).filter(Boolean)
+        (r.generator_output?.code_suggestions || []).map(s => (s.relevant_file || '').trim()).filter(Boolean)
       )
     ).size;
-    onProgress(`${filesWithSuggestions} file${filesWithSuggestions !== 1 ? 's' : ''} have suggestions, running reflector...`);
+    onProgress(`${filesWithSuggestions} file${filesWithSuggestions !== 1 ? 's' : ''} have suggestions, running rejector...`);
 
-    // ── Per-file reflector loops (parallel, fault-tolerant) ──────────────
-    const reflectorResults = await Promise.all(
-      perFileWithSuggestions.map(async ({ diff_content, suggestions }, i) => {
+    // ── Per-batch rejector loops (parallel, fault-tolerant) ──────────────
+    const rejectorResults = await Promise.all(
+      perFileWithSuggestions.map(async ({ diff_content, file_contents, rejector_input }, i) => {
         try {
           return await runTurnLoop(
             {
               diff_content,
-              prompt_template_name: 'reflector',
-              extra_variables: { suggestion_str: suggestions },
+              file_contents,
+              prompt_template_name: 'rejector',
+              extra_variables: rejector_input,
             },
             gitRoot,
             true
           );
         } catch (err) {
-          console.error(`[error] Reflector failed for file ${i}: ${err.message}`);
+          console.error(`[error] Rejector failed for batch ${i}: ${err.message}`);
           return { finalMessage: null, finalOutput: null };
         }
       })
     );
 
-    // ── Parse results, carrying generator labels through reflector ──────
-    // Pragent's rejector schema drops `label`; preserve it by matching the
-    // reflector's per-issue (file, start_line) back to the generator's output.
-    const issues = reflectorResults.flatMap((r, i) => {
-      const genSuggestions = perFileWithSuggestions[i]?.output?.code_suggestions || [];
-      const norm = (v) => (typeof v === 'string' ? v.trim() : v);
-      const labelFor = (issue) => {
-        if (norm(issue.label)) return norm(issue.label);
-        // Match by summary (pragent's primary strategy): rejector's
-        // suggestion_summary (renamed to issue_content server-side) is
-        // "Repeated from the input" — i.e. the generator's one_sentence_summary.
-        const summary = norm(issue.issue_content);
-        if (summary) {
-          const exact = genSuggestions.find(g => norm(g.one_sentence_summary) === summary);
-          if (norm(exact?.label)) return norm(exact.label);
+    const finalizedResults = await Promise.all(
+      rejectorResults.map((result, i) => fetchApi(
+        '/extension/pr-review/agent/finalize',
+        'POST',
+        {
+          diff_content: perFileWithSuggestions[i].diff_content,
+          generator_output: perFileWithSuggestions[i].generator_output,
+          rejector_output: result.finalOutput || { code_suggestions: [] },
         }
-        // Fallback: first generator suggestion in the same file with a label.
-        const file = norm(issue.relevant_file);
-        const sameFile = genSuggestions.find(g => norm(g.relevant_file) === file && norm(g.label));
-        return norm(sameFile?.label) || 'Code Quality';
-      };
-      return (r.finalOutput?.code_suggestions || []).map((issue) => ({
-        issue_content: issue.issue_content || '',
+      ))
+    );
+
+    const issues = finalizedResults.flatMap(r =>
+      (r.output?.code_suggestions || []).map(issue => ({
+        issue_content: issue.suggestion_content || issue.one_sentence_summary || '',
         relevant_file: issue.relevant_file || 'Unknown',
-        start_line: issue.start_line || 0,
-        label: labelFor(issue),
-      }));
-    });
+        start_line: issue.relevant_lines_start || 0,
+        label: issue.label || 'Code Quality',
+      }))
+    );
 
     const labelCounts = {};
     for (const i of issues) { labelCounts[i.label] = (labelCounts[i.label] || 0) + 1; }

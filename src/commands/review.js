@@ -81,24 +81,39 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
 
         // ── Split into per-file requests ───────────────────────────────────
         const perFileRequests = ReviewApiHelper.splitIntoPerFileRequests(requestBody);
+        let riskHypotheses = '';
+        try {
+          setCurrentMessage('Planning review risks...');
+          const plannerResult = await runTurnLoop(
+            {
+              diff_content: requestBody.diff_content,
+              prompt_template_name: 'risk_planner',
+            },
+            gitRoot,
+            () => cancelled,
+            () => {},
+            false
+          );
+          riskHypotheses = plannerResult.finalOutput?.risk_hypotheses || '';
+        } catch (plannerError) {
+          console.error(`Risk planner failed; continuing without hypotheses: ${plannerError.message}`);
+        }
+
+        if (cancelled) return;
 
         // ── Per-file agent turn loops (parallel) ──────────────────────────
         setCurrentMessage(`Analyzing ${perFileRequests.length} file${perFileRequests.length !== 1 ? 's' : ''} in parallel...`);
 
         const perFileResults = await Promise.all(
           perFileRequests.map((fileReq) => {
-            const filename = fileReq._filename;
-            delete fileReq._filename;
-
-            // Convert file_contents dict → file_content/file_path for API
-            if (fileReq.file_contents?.[filename]) {
-              fileReq.file_content = fileReq.file_contents[filename];
-              fileReq.file_path = filename;
-            }
-            delete fileReq.file_contents;
+            const payload = {
+              ...fileReq,
+              extra_variables: { risk_hypotheses: riskHypotheses },
+            };
+            delete payload._filenames;
 
             return runTurnLoop(
-              fileReq,
+              payload,
               gitRoot,
               () => cancelled,
               () => {},
@@ -110,21 +125,23 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
         // Pair each file's suggestions with its own diff — skip files with no real suggestions
         const perFileWithSuggestions = perFileRequests.map((fileReq, i) => ({
           diff_content: fileReq.diff_content,
-          suggestions: perFileResults[i].finalMessage?.content,
-          output: perFileResults[i].finalOutput,
-        })).filter(r => r.output?.code_suggestions?.length > 0);
+          file_contents: fileReq.file_contents,
+          generator_output: perFileResults[i].finalOutput,
+          rejector_input: perFileResults[i].rejectorInput,
+        })).filter(r => r.generator_output?.code_suggestions?.length > 0);
 
         if (cancelled) return;
 
-        // ── Per-file reflector loops (parallel) ─────────────────────────────
-        setCurrentMessage('Running reflector...');
-        const reflectorResults = await Promise.all(
-          perFileWithSuggestions.map(({ diff_content, suggestions }) =>
+        // ── Per-batch rejector loops (parallel) ─────────────────────────────
+        setCurrentMessage('Running rejector...');
+        const rejectorResults = await Promise.all(
+          perFileWithSuggestions.map(({ diff_content, file_contents, rejector_input }) =>
             runTurnLoop(
               {
                 diff_content,
-                prompt_template_name: 'reflector',
-                extra_variables: { suggestion_str: suggestions },
+                file_contents,
+                prompt_template_name: 'rejector',
+                extra_variables: rejector_input,
               },
               gitRoot,
               () => cancelled,
@@ -136,11 +153,23 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
 
         if (cancelled) return;
 
-        const reviewIssues = reflectorResults.flatMap(r =>
-          (r.finalOutput?.code_suggestions || []).map(issue => ({
-            issue_content: issue.issue_content || '',
+        const finalizedResults = await Promise.all(
+          rejectorResults.map((result, i) => fetchApi(
+            '/extension/pr-review/agent/finalize',
+            'POST',
+            {
+              diff_content: perFileWithSuggestions[i].diff_content,
+              generator_output: perFileWithSuggestions[i].generator_output,
+              rejector_output: result.finalOutput || { code_suggestions: [] },
+            }
+          ))
+        );
+
+        const reviewIssues = finalizedResults.flatMap(r =>
+          (r.output?.code_suggestions || []).map(issue => ({
+            issue_content: issue.suggestion_content || issue.one_sentence_summary || '',
             relevant_file: issue.relevant_file || 'Unknown',
-            start_line: issue.start_line || 0,
+            start_line: issue.relevant_lines_start || 0,
             label: issue.label || 'Code Quality',
           }))
         );
@@ -213,10 +242,11 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
 
 // ── Turn loop ──────────────────────────────────────────────────────────────
 
-async function runTurnLoop(initialPayload, gitRoot, isCancelled, onMessage, isReflectorLoop) {
+async function runTurnLoop(initialPayload, gitRoot, isCancelled, onMessage, isRejectorLoop) {
   let nextPayload = initialPayload;
   let finalMessage = null;
   let finalOutput = null;
+  let rejectorInput = null;
 
   for (let turn = 0; turn < MAX_TURNS; turn+=1) {
     if (isCancelled()) break;
@@ -239,10 +269,11 @@ async function runTurnLoop(initialPayload, gitRoot, isCancelled, onMessage, isRe
 
     finalMessage = assistantMsg;
     if (resp.output) finalOutput = resp.output;
+    if (resp.rejector_input) rejectorInput = resp.rejector_input;
 
     if (done) {
-      // Handle parsing errors in final message by dumping response content (only on reflector loop)
-      if (isReflectorLoop && resp.parsing_error) {
+      // Preserve malformed rejector output for debugging.
+      if (isRejectorLoop && resp.parsing_error) {
         const dumpDir = path.join(gitRoot, '.codeant', 'codeSuggestions');
         const dumpFile = path.join(dumpDir, `code_suggestions_${Date.now()}.txt`);
         let dumpContent = resp.response?.content || JSON.stringify(resp, null, 2);
@@ -289,6 +320,5 @@ async function runTurnLoop(initialPayload, gitRoot, isCancelled, onMessage, isRe
     nextPayload = { session_id: sessionId, tool_results: toolResults };
   }
 
-  return { finalMessage, finalOutput };
+  return { finalMessage, finalOutput, rejectorInput };
 }
-

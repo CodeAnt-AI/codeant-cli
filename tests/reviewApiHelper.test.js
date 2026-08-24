@@ -345,8 +345,8 @@ describe('ReviewApiHelper integration tests', () => {
       expect(result.file_contents).not.toHaveProperty('docs/guide.md');
     });
 
-    it('limits to MAX_REVIEW_FILES (10) unique files', async () => {
-      for (let i = 1; i <= 12; i++) {
+    it('limits to MAX_REVIEW_FILES (15) unique files', async () => {
+      for (let i = 1; i <= 18; i++) {
         writeFile(`src/file${i}.js`, `const f${i} = ${i};\n`);
       }
       git('add -A');
@@ -355,7 +355,8 @@ describe('ReviewApiHelper integration tests', () => {
       const result = await helper.buildReviewApiRequest('staged-only');
 
       const fileCount = Object.keys(result.file_contents).length;
-      expect(fileCount).toBeLessThanOrEqual(10);
+      expect(fileCount).toBe(15);
+      expect(result._meta.max_files).toBe(15);
     });
 
     it('skips files exceeding MAX_FILE_LINES (5000)', async () => {
@@ -407,6 +408,28 @@ describe('ReviewApiHelper integration tests', () => {
 
       expect(result.diff_content).toMatch(/diff --git/);
       expect(result.diff_content).toMatch(/@@.*@@/);
+    });
+  });
+
+  describe('splitIntoPerFileRequests', () => {
+    it('keeps all file contents in five-file batches', () => {
+      const sections = Array.from({ length: 6 }, (_, i) =>
+        `diff --git a/src/f${i}.js b/src/f${i}.js\n@@ -1 +1 @@\n-old\n+new\n`
+      ).reverse();
+      const file_contents = Object.fromEntries(
+        Array.from({ length: 6 }, (_, i) => [`src/f${i}.js`, `new ${i}`])
+      );
+
+      const batches = ReviewApiHelper.splitIntoPerFileRequests({
+        diff_content: sections.join(''),
+        file_contents,
+      });
+
+      expect(batches).toHaveLength(2);
+      expect(batches[0]._filenames).toHaveLength(5);
+      expect(Object.keys(batches[0].file_contents)).toHaveLength(5);
+      expect(batches[1]._filenames).toEqual(['src/f5.js']);
+      expect(batches[1].file_contents['src/f5.js']).toBe('new 5');
     });
   });
 });
