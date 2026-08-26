@@ -1,9 +1,18 @@
 import { readFile } from 'node:fs/promises';
 
 import { fetchApiResponse } from '../../utils/fetchApi.js';
+import { resolveCliTenant } from '../../api/tenant.js';
 
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
-const BLOCKED_HEADERS = new Set(['authorization', 'cookie', 'host', 'content-length']);
+const BLOCKED_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'host',
+  'content-length',
+  'x-codeant-cli-org',
+  'x-codeant-cli-service',
+  'x-codeant-cli-base-url',
+]);
 
 export function normalizeApiPath(path) {
   const value = String(path || '').trim();
@@ -52,7 +61,17 @@ export function parseHeaders(values = []) {
   return headers;
 }
 
-export async function runApiRequest({ path, method, query, body, bodyFile, headers } = {}) {
+export async function runApiRequest({
+  path,
+  method,
+  query,
+  body,
+  bodyFile,
+  headers,
+  org,
+  service,
+  providerBaseUrl,
+} = {}) {
   const normalizedMethod = String(method || 'GET').toUpperCase();
   if (!METHODS.has(normalizedMethod)) {
     throw new Error(`Unsupported method ${normalizedMethod}. Use ${[...METHODS].join(', ')}.`);
@@ -66,12 +85,25 @@ export async function runApiRequest({ path, method, query, body, bodyFile, heade
     requestBody = parseJsonValue(await readFile(bodyFile, 'utf8'), 'body file');
   }
 
+  const tenant = await resolveCliTenant({ org, service, providerBaseUrl });
+  if (!['GET', 'HEAD'].includes(normalizedMethod)) {
+    if (requestBody !== undefined && (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody))) {
+      throw new Error('Authenticated application API request bodies must be JSON objects.');
+    }
+    requestBody = { ...tenant.requestBody, ...(requestBody || {}) };
+  }
   const response = await fetchApiResponse(normalizeApiPath(path), {
     method: normalizedMethod,
     query: parseJsonObject(query, 'query'),
     body: requestBody,
     headers: parseHeaders(headers),
     allowHttpError: true,
+    tenant,
   });
-  return { ok: response.ok, status: response.status, data: response.data };
+  return {
+    ok: response.ok,
+    status: response.status,
+    tenant: tenant.requestBody,
+    data: response.data,
+  };
 }

@@ -1,6 +1,6 @@
 # CodeAnt application APIs from the CLI
 
-The CLI uses the same authenticated CodeAnt API and organization/provider context as the web app. Sign in once, discover the connections available to that token, then use a first-class command or the generic API request command.
+The CLI can call the authenticated application endpoints used by the CodeAnt web app without adding a second backend adapter for each endpoint. Sign in once, select one exact organization/provider connection, then use a first-class command or the generic API request command.
 
 ```bash
 codeant login
@@ -8,6 +8,10 @@ codeant scans orgs
 ```
 
 `CODEANT_API_TOKEN` and `CODEANT_API_URL` can be used instead of the saved login for agents, CI, and self-hosted installations.
+
+The browser login binds the CLI key to the signed-in user and the exact connections visible to that user. For application API calls, the backend resolves the selected connection and injects the same verified user identity used by the app. The existing organization-membership, RBAC, repository-access, audit, and request guards still run. CLI keys expire after 90 days by default (`CLI_API_KEY_TTL_DAYS` controls the backend deployment value), and `codeant logout` revokes the key server-side before deleting it locally.
+
+Keys created before this authenticated application-API bridge do not contain the verified user identity. Run `codeant logout` followed by `codeant login` once after upgrading.
 
 ## Hotlist findings
 
@@ -58,12 +62,16 @@ For self-hosted GitHub, GitLab, Bitbucket, or Azure DevOps, the CLI normally dis
 Use the generic request command when a first-class command does not exist yet:
 
 ```bash
-codeant api request GET /some/read/endpoint --query '{"page":1}'
+codeant api request GET /some/read/endpoint \
+  --org CodeAnt-AI --service github \
+  --query '{"page":1}'
 
 codeant api request POST /some/app/endpoint \
-  --body '{"org":"CodeAnt-AI","service":"github"}'
+  --org CodeAnt-AI --service github \
+  --body '{"repo":"CodeAnt-AI/example"}'
 
 codeant api request PATCH /some/app/endpoint \
+  --org CodeAnt-AI --service github \
   --body-file ./request.json \
   --header 'If-Match: revision-123'
 ```
@@ -74,6 +82,10 @@ The output is JSON:
 {
   "ok": true,
   "status": 200,
+  "tenant": {
+    "org": "CodeAnt-AI",
+    "service": "github"
+  },
   "data": {}
 }
 ```
@@ -81,8 +93,10 @@ The output is JSON:
 Security properties:
 
 - The path must start with `/` and is always resolved against the configured CodeAnt API host. Absolute and protocol-relative URLs are rejected, so the bearer token cannot be forwarded to another host.
-- Authentication is supplied from `CODEANT_API_TOKEN` or the token saved by `codeant login`.
-- `Authorization`, `Cookie`, `Host`, and `Content-Length` headers cannot be overridden.
+- Authentication is supplied from `CODEANT_API_TOKEN` or the key saved by `codeant login`.
+- `--org`, `--service`, and the discovered provider base URL must match one saved login connection exactly. They are auto-selected only when unambiguous. Use `--provider-base-url` for a self-hosted override.
+- POST/PUT/PATCH/DELETE bodies must be JSON objects. The CLI adds the selected tenant fields before sending the request; conflicting tenant values are rejected by the backend.
+- `Authorization`, `Cookie`, `Host`, `Content-Length`, and the `X-CodeAnt-CLI-*` tenant headers cannot be overridden.
 - The backend remains authoritative for account access, organization membership, RBAC, and endpoint authorization.
 
 The generic command can call write endpoints. Review the method, path, and body before running it.
@@ -104,5 +118,6 @@ Set `CODEANT_READ_ONLY=0` to opt in to write tools, including `codeant_api_reque
 | No matching organization | Run `codeant scans orgs`, then pass its exact `organizationName` and `service`. |
 | Multiple organizations match | Pass both `--org` and `--service`. |
 | Access denied (403) | Run `codeant logout`, then `codeant login`, or replace `CODEANT_API_TOKEN`. |
+| Invalid token after upgrading | Older keys lack verified CLI identity metadata. Run `codeant logout`, then `codeant login`. |
 | Hotlist is still building | Retry, or increase `--max-wait`. |
 | Finding not found | Refresh the app/Hotlist and copy the current stable finding ID and tenant context. |

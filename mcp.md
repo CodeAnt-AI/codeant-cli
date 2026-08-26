@@ -18,7 +18,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_scans_dismissed` | read | Dismissed alerts for a repo. |
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
-| `codeant_api_get` | read | Authenticated GET request to any relative CodeAnt API path. |
+| `codeant_api_get` | read | Authenticated GET request to any relative CodeAnt app API path, with exact org/provider context. |
 | `codeant_pr_list` | read | List PRs/MRs across GitHub, GitLab, Bitbucket, Azure DevOps. |
 | `codeant_pr_get` | read | Detail for a PR/MR. |
 | `codeant_pr_comments` | read | Comments on a PR, filtered. |
@@ -26,7 +26,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes. |
 | `codeant_scans_start` | **write** | Trigger a new scan. Gated. |
 | `codeant_pr_resolve` | **write** | Resolve a PR conversation thread. Gated. |
-| `codeant_api_request` | **write** | Authenticated POST/PUT/PATCH/DELETE request to a relative CodeAnt API path. Gated. |
+| `codeant_api_request` | **write** | Authenticated POST/PUT/PATCH/DELETE request to a relative CodeAnt app API path, with exact org/provider context. Gated. |
 
 Write tools are only registered when `CODEANT_READ_ONLY=0`. Default = read-only.
 

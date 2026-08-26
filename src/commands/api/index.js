@@ -15,6 +15,9 @@ export default function registerApiCommands(program, { runCmd }) {
     .option('--query <json>', 'Query parameters as a JSON object')
     .option('--body <json>', 'JSON request body')
     .option('--body-file <path>', 'Read the JSON request body from a file')
+    .option('--org <organization>', 'Authenticated CodeAnt organization')
+    .option('--service <provider>', 'SCM provider: github, gitlab, bitbucket, or azuredevops')
+    .option('--provider-base-url <url>', 'Provider base URL override for self-hosted SCMs')
     .option('-H, --header <header>', 'Additional header (repeatable, "Name: value")', collect, [])
     .action((method, path, options) => runCmd(() => runApiRequest({
       method,
@@ -23,5 +26,8 @@ export default function registerApiCommands(program, { runCmd }) {
       body: options.body,
       bodyFile: options.bodyFile,
       headers: options.header,
+      org: options.org,
+      service: options.service,
+      providerBaseUrl: options.providerBaseUrl,
     })));
 }

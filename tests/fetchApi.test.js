@@ -51,6 +51,34 @@ describe('fetchApi', () => {
     expect(fetch.mock.calls[0][0]).toBe('https://api.codeant.test/items?tag=a&tag=b');
   });
 
+  it('attaches server-managed CLI tenant headers for app API calls', async () => {
+    fetch.mockResolvedValue(new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await fetchApiResponse('/explorer/security/hotlist/query', {
+      method: 'POST',
+      body: {},
+      tenant: {
+        organization: 'Acme',
+        service: 'gitlab',
+        providerBaseUrl: 'https://gitlab.acme.test',
+      },
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.codeant.test/explorer/security/hotlist/query',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-CodeAnt-CLI-Org': 'Acme',
+          'X-CodeAnt-CLI-Service': 'gitlab',
+          'X-CodeAnt-CLI-Base-URL': 'https://gitlab.acme.test',
+        }),
+      }),
+    );
+  });
+
   it('surfaces nested API error messages', async () => {
     fetch.mockResolvedValue(new Response(JSON.stringify({ error: { message: 'Finding not found' } }), {
       status: 404,

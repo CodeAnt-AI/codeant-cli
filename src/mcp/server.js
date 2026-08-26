@@ -13,8 +13,9 @@ import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
 import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
-import { getConfigValue, setConfigValue } from '../utils/config.js';
+import { getConfigValue } from '../utils/config.js';
 import { runHotlistGet, runHotlistList } from '../hotlist/client.js';
+import { logoutCodeAnt } from '../utils/logout.js';
 import { runApiRequest } from '../commands/api/request.js';
 
 const require = createRequire(import.meta.url);
@@ -274,6 +275,9 @@ export async function startMcpServer() {
       description: 'Call any authenticated GET endpoint on the configured CodeAnt API host. The path must be relative (for example /extension/scans2/validate); absolute URLs are rejected.',
       inputSchema: {
         path: z.string().startsWith('/'),
+        org: z.string().optional().describe('Organization name. Required when the login has multiple matching connections.'),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional().describe('Override only for a self-hosted provider.'),
         query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
         headers: z.array(z.string()).optional().describe('Optional repeatable "Name: value" headers. Authorization cannot be overridden.'),
       },
@@ -488,10 +492,11 @@ export async function startMcpServer() {
     },
     async () => {
       try {
-        const wasLoggedIn = !!(process.env.CODEANT_API_TOKEN?.trim() || getConfigValue('apiKeyV2'));
-        setConfigValue('apiKeyV2', null);
-        delete process.env.CODEANT_API_TOKEN;
-        return ok({ wasLoggedIn, status: wasLoggedIn ? 'logged_out' : 'not_logged_in' });
+        const result = await logoutCodeAnt();
+        return ok({
+          ...result,
+          status: result.wasLoggedIn ? 'logged_out' : 'not_logged_in',
+        });
       } catch (err) { return fail(err); }
     }
   );
@@ -506,6 +511,9 @@ export async function startMcpServer() {
         inputSchema: {
           method: z.enum(['POST', 'PUT', 'PATCH', 'DELETE']),
           path: z.string().startsWith('/'),
+          org: z.string().optional().describe('Organization name. Required when the login has multiple matching connections.'),
+          service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+          providerBaseUrl: z.string().url().optional().describe('Override only for a self-hosted provider.'),
           query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
           body: z.unknown().optional(),
           headers: z.array(z.string()).optional(),

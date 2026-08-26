@@ -65,6 +65,7 @@ const fetchApiResponse = async (endpoint, {
   headers = {},
   query = null,
   allowHttpError = false,
+  tenant = null,
 } = {}) => {
   const baseUrl = getBaseUrl();
   const resolvedUrl = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
@@ -83,6 +84,11 @@ const fetchApiResponse = async (endpoint, {
   const token = process.env.CODEANT_API_TOKEN || getConfigValue('apiKeyV2');
   if (token) {
     options.headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (tenant) {
+    options.headers['X-CodeAnt-CLI-Org'] = tenant.organization;
+    options.headers['X-CodeAnt-CLI-Service'] = tenant.service;
+    options.headers['X-CodeAnt-CLI-Base-URL'] = tenant.providerBaseUrl;
   }
 
   if (body !== null && body !== undefined && !['GET', 'HEAD'].includes(normalizedMethod)) {
@@ -137,4 +143,9 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
   return response.data;
 };
 
-export { fetchApi, fetchApiResponse };
+const fetchAppApi = async (endpoint, method = 'GET', body = null, tenant) => {
+  const response = await fetchApiResponse(endpoint, { method, body, tenant });
+  return response.data;
+};
+
+export { fetchApi, fetchApiResponse, fetchAppApi };

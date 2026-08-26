@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { validateConnection, fetchApi } = vi.hoisted(() => ({
+const { validateConnection, fetchAppApi } = vi.hoisted(() => ({
   validateConnection: vi.fn(),
-  fetchApi: vi.fn(),
+  fetchAppApi: vi.fn(),
 }));
 
 vi.mock('../src/scans/connectionHandler.js', () => ({ validateConnection }));
-vi.mock('../src/utils/fetchApi.js', () => ({ fetchApi }));
+vi.mock('../src/utils/fetchApi.js', () => ({ fetchAppApi }));
 
 const { resolveHotlistTenant, runHotlistGet, runHotlistList } = await import('../src/hotlist/client.js');
 
@@ -20,7 +20,7 @@ const connectionResult = {
 describe('Hotlist client', () => {
   beforeEach(() => {
     validateConnection.mockReset();
-    fetchApi.mockReset();
+    fetchAppApi.mockReset();
     validateConnection.mockResolvedValue(connectionResult);
   });
 
@@ -39,7 +39,7 @@ describe('Hotlist client', () => {
   });
 
   it('passes UI-compatible filters and follows every cursor', async () => {
-    fetchApi
+    fetchAppApi
       .mockResolvedValueOnce({ state: 'ready', items: [{ id: 'a' }], has_more: true, next_cursor: 'next' })
       .mockResolvedValueOnce({ state: 'ready', items: [{ id: 'b' }], has_more: false, next_cursor: null });
 
@@ -52,30 +52,30 @@ describe('Hotlist client', () => {
       all: true,
     });
 
-    expect(fetchApi).toHaveBeenNthCalledWith(1, '/explorer/security/hotlist/query', 'POST', expect.objectContaining({
+    expect(fetchAppApi).toHaveBeenNthCalledWith(1, '/explorer/security/hotlist/query', 'POST', expect.objectContaining({
       filters: expect.objectContaining({
         severities: ['critical', 'high'],
         validation: ['exploit_confirmed'],
       }),
       limit: 25,
       cursor: null,
-    }));
-    expect(fetchApi).toHaveBeenNthCalledWith(2, '/explorer/security/hotlist/query', 'POST', expect.objectContaining({ cursor: 'next' }));
+    }), expect.objectContaining({ organization: 'CodeAnt-AI', service: 'github' }));
+    expect(fetchAppApi).toHaveBeenNthCalledWith(2, '/explorer/security/hotlist/query', 'POST', expect.objectContaining({ cursor: 'next' }), expect.any(Object));
     expect(result.items).toEqual([{ id: 'a' }, { id: 'b' }]);
     expect(result.returned_count).toBe(2);
   });
 
   it('gets one finding by stable ID', async () => {
     const findingId = '0123456789abcdef0123456789abcdef';
-    fetchApi.mockResolvedValue({ state: 'ready', item: { id: findingId } });
+    fetchAppApi.mockResolvedValue({ state: 'ready', item: { id: findingId } });
 
     const result = await runHotlistGet({ findingId, org: 'CodeAnt-AI', service: 'github' });
 
-    expect(fetchApi).toHaveBeenCalledWith('/explorer/security/hotlist/finding', 'POST', expect.objectContaining({
+    expect(fetchAppApi).toHaveBeenCalledWith('/explorer/security/hotlist/finding', 'POST', expect.objectContaining({
       finding_id: findingId,
       organization: 'CodeAnt-AI',
       service: 'github',
-    }));
+    }), expect.any(Object));
     expect(result.item.id).toBe(findingId);
   });
 

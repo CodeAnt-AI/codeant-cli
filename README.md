@@ -145,8 +145,8 @@ codeant hotlist get 0123456789abcdef0123456789abcdef --org CodeAnt-AI --service 
 Call any CodeAnt application API using the saved bearer token. Only relative paths on the configured CodeAnt API host are accepted.
 
 ```bash
-codeant api request GET /some/read/endpoint --query '{"page":1}'
-codeant api request POST /some/app/endpoint --body '{"org":"CodeAnt-AI"}'
+codeant api request GET /some/read/endpoint --org CodeAnt-AI --service github --query '{"page":1}'
+codeant api request POST /some/app/endpoint --org CodeAnt-AI --service github --body '{"repo":"CodeAnt-AI/example"}'
 ```
 
 See [cli-api.md](cli-api.md) for the complete Hotlist, raw API, authentication, self-hosted provider, and agent/MCP manual.
