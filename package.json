@@ -34,7 +34,9 @@
     "./scans/scan-history": "./src/scans/getScanHistory.js",
     "./scans/fetch-results": "./src/scans/fetchScanResults.js",
     "./scans/fetch-advanced-results": "./src/scans/fetchAdvancedScanResults.js",
-    "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js"
+    "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js",
+    "./hotlist": "./src/hotlist/client.js",
+    "./api": "./src/commands/api/request.js"
   },
   "files": [
     "src"

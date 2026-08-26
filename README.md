@@ -131,6 +131,26 @@ Show the current API base URL and its source.
 codeant get-base-url
 ```
 
+#### `hotlist`
+
+Query the same organization-wide prioritized findings shown in the CodeAnt Hotlist, or fetch one finding by its stable ID.
+
+```bash
+codeant hotlist list --org CodeAnt-AI --service github --severity critical,high
+codeant hotlist get 0123456789abcdef0123456789abcdef --org CodeAnt-AI --service github
+```
+
+#### `api request`
+
+Call any CodeAnt application API using the saved bearer token. Only relative paths on the configured CodeAnt API host are accepted.
+
+```bash
+codeant api request GET /some/read/endpoint --query '{"page":1}'
+codeant api request POST /some/app/endpoint --body '{"org":"CodeAnt-AI"}'
+```
+
+See [cli-api.md](cli-api.md) for the complete Hotlist, raw API, authentication, self-hosted provider, and agent/MCP manual.
+
 ### Global Options
 
 ```bash
@@ -240,11 +260,11 @@ node src/index.js secrets --all
 
 This package also ships an MCP (Model Context Protocol) server that exposes CodeAnt's scan, review, and PR data as tools to Claude and other MCP clients. The same source tree is packaged as a Desktop Extension (`.mcpb`) for one-click install in Claude Desktop.
 
-See [mcp.md](mcp.md) for the tools listing, install paths (Claude Code CLI, Claude Desktop manual config, MCPB double-click), and bundling/submission instructions.
+See [mcp.md](mcp.md) for the tools listing, install paths (Claude Code CLI, Claude Desktop manual config, MCPB double-click), and bundling/submission instructions. See [cli-api.md](cli-api.md) for Hotlist and generic authenticated API usage.
 
 ## Privacy Policy
 
-Full policy: **https://codeant.ai/privacy**
+Full policy: **https://www.codeant.ai/privacy-policy**
 
 Summary of what this CLI / MCP server sends and stores:
 

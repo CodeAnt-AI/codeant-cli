@@ -14,6 +14,8 @@ import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
 import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
 import { getConfigValue, setConfigValue } from '../utils/config.js';
+import { runHotlistGet, runHotlistList } from '../hotlist/client.js';
+import { runApiRequest } from '../commands/api/request.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -212,6 +214,73 @@ export async function startMcpServer() {
     },
     async ({ repo, analysisType }) => {
       try { return ok(await runDismissed({ repo, analysisType: analysisType ?? 'security' })); } catch (err) { return fail(err); }
+    }
+  );
+
+  // ─── Organization Hotlist findings (read-only) ──────────────────────────
+  server.registerTool(
+    'codeant_hotlist_list',
+    {
+      title: 'List prioritized Hotlist findings',
+      description: 'Query the organization-wide Hotlist using the same stable IDs, ranking, filters, and pagination as the CodeAnt app. Use this for cross-repository security prioritization and agent triage.',
+      inputSchema: {
+        org: z.string().optional().describe('Organization name. Auto-picked when exactly one connection matches.'),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional().describe('Override only for a self-hosted provider.'),
+        search: z.string().optional(),
+        types: z.array(z.string()).optional(),
+        locations: z.array(z.string()).optional(),
+        severities: z.array(z.enum(['critical', 'high', 'medium', 'low', 'unknown'])).optional(),
+        ticketStatuses: z.array(z.enum(['created', 'not_created'])).optional(),
+        compliance: z.array(z.string()).optional(),
+        validation: z.array(z.enum(['exploit_confirmed'])).optional(),
+        limit: z.number().int().positive().max(100).optional(),
+        cursor: z.string().optional(),
+        all: z.boolean().optional().describe('Fetch every matching page. Default false.'),
+        maxWaitSeconds: z.number().int().nonnegative().max(600).optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runHotlistList(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_hotlist_get',
+    {
+      title: 'Get a Hotlist finding',
+      description: 'Fetch one complete Hotlist finding by its 32-character stable ID. Use the ID displayed in the app or returned by codeant_hotlist_list.',
+      inputSchema: {
+        findingId: z.string().regex(/^[0-9a-f]{32}$/i),
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        maxWaitSeconds: z.number().int().nonnegative().max(600).optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runHotlistGet(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  // Generic GET keeps newly-added read APIs available without a CLI release.
+  // Non-GET requests are registered below only when write mode is enabled.
+  server.registerTool(
+    'codeant_api_get',
+    {
+      title: 'Call a CodeAnt GET API',
+      description: 'Call any authenticated GET endpoint on the configured CodeAnt API host. The path must be relative (for example /extension/scans2/validate); absolute URLs are rejected.',
+      inputSchema: {
+        path: z.string().startsWith('/'),
+        query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+        headers: z.array(z.string()).optional().describe('Optional repeatable "Name: value" headers. Authorization cannot be overridden.'),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runApiRequest({ method: 'GET', ...input })); } catch (err) { return fail(err); }
     }
   );
 
@@ -429,6 +498,25 @@ export async function startMcpServer() {
 
   // ─── Write-side tools (gated behind CODEANT_READ_ONLY=0) ─────────────────
   if (!readOnly) {
+    server.registerTool(
+      'codeant_api_request',
+      {
+        title: 'Call a CodeAnt write API',
+        description: 'Call an authenticated POST, PUT, PATCH, or DELETE endpoint on the configured CodeAnt API host. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0. Absolute URLs are rejected.',
+        inputSchema: {
+          method: z.enum(['POST', 'PUT', 'PATCH', 'DELETE']),
+          path: z.string().startsWith('/'),
+          query: z.record(z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+          body: z.unknown().optional(),
+          headers: z.array(z.string()).optional(),
+        },
+        annotations: WRITE_NON_DESTRUCTIVE,
+      },
+      async (input) => {
+        try { return ok(await runApiRequest(input)); } catch (err) { return fail(err); }
+      }
+    );
+
     server.registerTool(
       'codeant_scans_start',
       {
