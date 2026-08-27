@@ -7,6 +7,9 @@ import { createRequire } from 'module';
 import Secrets from './commands/secrets.js';
 import SetBaseUrl from './commands/setBaseUrl.js';
 import GetBaseUrl from './commands/getBaseUrl.js';
+import SetDashboardUrl from './commands/setDashboardUrl.js';
+import GetDashboardUrl from './commands/getDashboardUrl.js';
+import RemoveDashboardUrl from './commands/removeDashboardUrl.js';
 import SetApiKey from './commands/setApiKey.js';
 import GetApiKey from './commands/getApiKey.js';
 import Login from './commands/login.js';
@@ -186,6 +189,27 @@ program
     .description('Show the current API base URL')
     .action(() => {
       render(React.createElement(GetBaseUrl));
+    });
+
+  program
+    .command('set-dashboard-url <url>')
+    .description('Set the web app dashboard URL used for login')
+    .action((url) => {
+      render(React.createElement(SetDashboardUrl, { url }));
+    });
+
+  program
+    .command('get-dashboard-url')
+    .description('Show the current dashboard URL override')
+    .action(() => {
+      render(React.createElement(GetDashboardUrl));
+    });
+
+  program
+    .command('remove-dashboard-url')
+    .description('Remove the dashboard URL override')
+    .action(() => {
+      render(React.createElement(RemoveDashboardUrl));
     });
 
   program
