@@ -17,6 +17,9 @@ import { getConfigValue } from '../utils/config.js';
 import { runHotlistGet, runHotlistList } from '../hotlist/client.js';
 import { logoutCodeAnt } from '../utils/logout.js';
 import { runApiRequest } from '../commands/api/request.js';
+import { runOrganizationAntipatterns } from '../findings/antipatterns.js';
+import { runCloudFindingGet, runCloudFindings, runCloudHistory } from '../findings/cloud.js';
+import { runPentestHistory, runPentestIssues, runPentestReport } from '../findings/pentest.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -263,6 +266,154 @@ export async function startMcpServer() {
     },
     async (input) => {
       try { return ok(await runHotlistGet(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_findings_antipatterns',
+    {
+      title: 'List organization anti-pattern findings',
+      description: 'Fetch anti-pattern findings across selected repositories, or every repository in the organization when repos is omitted.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        repos: z.array(z.string()).optional().describe('Repositories in owner/repo form. Omit to query every repository.'),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runOrganizationAntipatterns(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_cloud_scan_history',
+    {
+      title: 'List cloud security scan history',
+      description: 'List AWS, Azure, or GCP CSPM, VM, or container scans visible in the CodeAnt Cloud Security UI. Cloud findings are organization/account scoped, not repository scoped.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        provider: z.enum(['aws', 'azure', 'gcp', 'all']).optional().describe('Default all.'),
+        kind: z.enum(['cspm', 'vm', 'container']).optional().describe('Default cspm.'),
+        latest: z.boolean().optional().describe('Return latest scans instead of complete history. CSPM only.'),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runCloudHistory(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_cloud_findings_list',
+    {
+      title: 'List cloud security findings',
+      description: 'Fetch findings for one AWS, Azure, or GCP CSPM, VM, or container scan using the same endpoint as the app.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        provider: z.enum(['aws', 'azure', 'gcp']),
+        kind: z.enum(['cspm', 'vm', 'container']).optional().describe('Default cspm.'),
+        scanId: z.string(),
+        accountId: z.string().optional().describe('Optional AWS account ID.'),
+        tenantId: z.string().optional().describe('Required for Azure.'),
+        projectId: z.string().optional().describe('Required for GCP.'),
+        cloudService: z.string().optional(),
+        severity: z.string().optional(),
+        status: z.string().optional(),
+        framework: z.string().optional(),
+        subscriptionId: z.string().optional(),
+        exploitAttemptedOnly: z.boolean().optional(),
+        minDaysUnused: z.number().int().nonnegative().optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runCloudFindings(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_cloud_finding_get',
+    {
+      title: 'Get cloud security finding detail',
+      description: 'Fetch complete detail for one CSPM, VM, or container finding UID.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        provider: z.enum(['aws', 'azure', 'gcp']),
+        kind: z.enum(['cspm', 'vm', 'container']).optional().describe('Default cspm.'),
+        scanId: z.string(),
+        uid: z.string(),
+        accountId: z.string().optional(),
+        tenantId: z.string().optional().describe('Required for Azure.'),
+        projectId: z.string().optional().describe('Required for GCP.'),
+        cloudService: z.string().optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runCloudFindingGet(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_pentest_history',
+    {
+      title: 'List pentest engagements',
+      description: 'List every pentest engagement visible in the CodeAnt Pentesting UI, including status and finding counts.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runPentestHistory(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_pentest_issues',
+    {
+      title: 'List pentest issues',
+      description: 'Fetch all available open issues for one pentest engagement. The backend applies the same entitlement redaction as the UI.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        reportId: z.string(),
+        variant: z.enum(['prod', 'test']).optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runPentestIssues(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_pentest_report',
+    {
+      title: 'Get pentest report',
+      description: 'Fetch the full customer report for one pentest engagement. The backend applies the same entitlement redaction as the UI.',
+      inputSchema: {
+        org: z.string().optional(),
+        service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
+        providerBaseUrl: z.string().url().optional(),
+        reportId: z.string(),
+        variant: z.enum(['prod', 'test']).optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runPentestReport(input)); } catch (err) { return fail(err); }
     }
   );
 

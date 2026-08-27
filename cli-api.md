@@ -57,6 +57,10 @@ Comma-separated values are accepted. The default page size is 30 and the maximum
 
 For self-hosted GitHub, GitLab, Bitbucket, or Azure DevOps, the CLI normally discovers the provider base URL from the authenticated connection. Use `--provider-base-url` only to override it.
 
+## All findings
+
+Use `codeant findings` for first-class access to repository findings, organization Hotlist and anti-pattern findings, AWS/Azure/GCP cloud-security findings, and pentest engagements. The full command matrix, provider-specific fields, examples, and agent workflow are documented in [findings.md](findings.md).
+
 ## Any app API
 
 Use the generic request command when a first-class command does not exist yet:
@@ -108,6 +112,9 @@ Run `codeant mcp` or install the CodeAnt MCP bundle. Agents receive dedicated re
 - `codeant_hotlist_list` — filter and page through organization-wide findings.
 - `codeant_hotlist_get` — fetch one finding by stable ID.
 - `codeant_api_get` — authenticated GET access for newly-added read APIs.
+- `codeant_findings_antipatterns` — selected or all-repository anti-pattern findings.
+- `codeant_cloud_scan_history`, `codeant_cloud_findings_list`, `codeant_cloud_finding_get` — cloud scan discovery, findings, and detail.
+- `codeant_pentest_history`, `codeant_pentest_issues`, `codeant_pentest_report` — pentest engagement discovery and results.
 
 Set `CODEANT_READ_ONLY=0` to opt in to write tools, including `codeant_api_request` for POST/PUT/PATCH/DELETE. Read-only mode is the default. The MCP server never opens a browser during startup; the agent must explicitly call `codeant_login` when no token is configured.
 

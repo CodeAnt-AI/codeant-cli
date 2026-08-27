@@ -140,6 +140,20 @@ codeant hotlist list --org CodeAnt-AI --service github --severity critical,high
 codeant hotlist get 0123456789abcdef0123456789abcdef --org CodeAnt-AI --service github
 ```
 
+#### `findings`
+
+Access repository, organization Hotlist, cloud-security, anti-pattern, and pentest findings through one command group.
+
+```bash
+codeant findings repos --org CodeAnt-AI
+codeant findings repo --repo CodeAnt-AI/example --types sast,sca,iac,anti_patterns
+codeant findings list --severity critical,high
+codeant findings cloud history --provider all
+codeant findings pentest history
+```
+
+See [findings.md](findings.md) for the complete command and agent manual.
+
 #### `api request`
 
 Call any CodeAnt application API using the saved bearer token. Only relative paths on the configured CodeAnt API host are accepted.
@@ -149,7 +163,7 @@ codeant api request GET /some/read/endpoint --org CodeAnt-AI --service github --
 codeant api request POST /some/app/endpoint --org CodeAnt-AI --service github --body '{"repo":"CodeAnt-AI/example"}'
 ```
 
-See [cli-api.md](cli-api.md) for the complete Hotlist, raw API, authentication, self-hosted provider, and agent/MCP manual.
+See [findings.md](findings.md) for all finding commands and [cli-api.md](cli-api.md) for raw API, authentication, self-hosted provider, and agent/MCP details.
 
 ### Global Options
 

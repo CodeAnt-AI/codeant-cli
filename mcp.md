@@ -18,6 +18,13 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_scans_dismissed` | read | Dismissed alerts for a repo. |
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
+| `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos. |
+| `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history. |
+| `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan. |
+| `codeant_cloud_finding_get` | read | Full detail for one cloud finding UID. |
+| `codeant_pentest_history` | read | Pentest engagement history. |
+| `codeant_pentest_issues` | read | All available issues for a pentest engagement. |
+| `codeant_pentest_report` | read | Full pentest customer report. |
 | `codeant_api_get` | read | Authenticated GET request to any relative CodeAnt app API path, with exact org/provider context. |
 | `codeant_pr_list` | read | List PRs/MRs across GitHub, GitLab, Bitbucket, Azure DevOps. |
 | `codeant_pr_get` | read | Detail for a PR/MR. |
@@ -30,7 +37,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 
 Write tools are only registered when `CODEANT_READ_ONLY=0`. Default = read-only.
 
-For Hotlist examples, raw API syntax, tenant/provider selection, and response details, see [cli-api.md](cli-api.md).
+For the complete finding coverage and examples, see [findings.md](findings.md). For raw API syntax, tenant/provider selection, and response details, see [cli-api.md](cli-api.md).
 
 Every tool carries MCP annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so the client can decide whether to auto-approve calls.
 
@@ -154,7 +161,7 @@ cd dist/mcpb-stage
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 1) | node server/index.js
 ```
 
-Expect 16 tools in the `tools/list` response (or 19 if `CODEANT_READ_ONLY=0`).
+Expect 23 tools in the `tools/list` response (or 26 if `CODEANT_READ_ONLY=0`).
 
 ### Bumping the version
 

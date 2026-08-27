@@ -36,10 +36,17 @@
     "./scans/fetch-advanced-results": "./src/scans/fetchAdvancedScanResults.js",
     "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js",
     "./hotlist": "./src/hotlist/client.js",
+    "./findings/cloud": "./src/findings/cloud.js",
+    "./findings/pentest": "./src/findings/pentest.js",
+    "./findings/antipatterns": "./src/findings/antipatterns.js",
     "./api": "./src/commands/api/request.js"
   },
   "files": [
-    "src"
+    "src",
+    "findings.md",
+    "cli-api.md",
+    "scans.md",
+    "mcp.md"
   ],
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",
