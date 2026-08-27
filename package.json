@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Code review CLI tool",
   "type": "module",
   "bin": {
