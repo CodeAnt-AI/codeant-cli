@@ -23,6 +23,9 @@ import { setConfigValue } from './utils/config.js';
 import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
 import registerScansCommands from './commands/scans/index.js';
 import registerSettingsCommands from './commands/settings/index.js';
+import registerApiCommands from './commands/api/index.js';
+import registerHotlistCommands from './commands/hotlist/index.js';
+import registerFindingsCommands from './commands/findings/index.js';
 
 // Read version from package.json
 const require = createRequire(import.meta.url);
@@ -420,6 +423,15 @@ program
 
   // ─── Settings commands ───
   registerSettingsCommands(program, { runCmd });
+
+  // ─── Authenticated application API passthrough ───
+  registerApiCommands(program, { runCmd });
+
+  // ─── Organization Hotlist findings ───
+  registerHotlistCommands(program, { runCmd });
+
+  // ─── Unified findings commands ───
+  registerFindingsCommands(program, { runCmd });
 
   // ─── MCP server (for Claude Code plugin and other MCP clients) ───
   program

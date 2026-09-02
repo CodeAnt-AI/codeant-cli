@@ -42,4 +42,4 @@ jobs:
 
             Commit: ${{ github.sha }}
 
-            Install instructions: https://github.com/CodeAnt-AI/codeant-cli/blob/main/mcp.md
+            Install instructions: https://docs.codeant.ai/cli/mcp-server

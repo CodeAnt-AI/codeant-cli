@@ -23,13 +23,61 @@ const RETRYABLE_CAUSES = new Set([
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const fetchApi = async (endpoint, method = 'GET', body = null) => {
-  const url = endpoint.startsWith('http') ? endpoint : `${getBaseUrl()}${endpoint}`;
+function responseMessage(data, status) {
+  if (typeof data?.error?.message === 'string') return data.error.message;
+  if (typeof data?.message === 'string') return data.message;
+  if (typeof data?.error === 'string') return data.error;
+  return `HTTP error ${status}`;
+}
+
+function appendQuery(url, query) {
+  if (!query || typeof query !== 'object') return url;
+  const parsed = new URL(url);
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) parsed.searchParams.append(key, String(item));
+    } else {
+      parsed.searchParams.set(key, String(value));
+    }
+  }
+  return parsed.toString();
+}
+
+async function parseResponse(response) {
+  if (response.status === 204 || response.status === 205) return null;
+  const text = await response.text();
+  if (!text) return null;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('json') || /^[\s]*[\[{]/.test(text)) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      // A mislabeled response should still be inspectable by the caller.
+    }
+  }
+  return text;
+}
+
+const fetchApiResponse = async (endpoint, {
+  method = 'GET',
+  body = null,
+  headers = {},
+  query = null,
+  allowHttpError = false,
+  tenant = null,
+  signal = undefined,
+} = {}) => {
+  const baseUrl = getBaseUrl();
+  const resolvedUrl = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+  const url = appendQuery(resolvedUrl, query);
+  const normalizedMethod = String(method || 'GET').toUpperCase();
 
   const options = {
-    method,
+    method: normalizedMethod,
     headers: {
       'Content-Type': 'application/json',
+      ...headers,
     },
   };
 
@@ -38,9 +86,17 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
   if (token) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
+  if (tenant) {
+    options.headers['X-CodeAnt-CLI-Org'] = tenant.organization;
+    options.headers['X-CodeAnt-CLI-Service'] = tenant.service;
+    options.headers['X-CodeAnt-CLI-Base-URL'] = tenant.providerBaseUrl;
+  }
 
-  if (body && method !== 'GET') {
+  if (body !== null && body !== undefined && !['GET', 'HEAD'].includes(normalizedMethod)) {
     options.body = JSON.stringify(body);
+  }
+  if (signal) {
+    options.signal = signal;
   }
 
   // Retry transient network/cold-start failures up to 2 times.
@@ -55,13 +111,21 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
         throw new Error('Access denied (403). Please run `codeant logout` and then `codeant login` to re-authenticate.');
       }
 
-      const data = await response.json();
+      const data = await parseResponse(response);
 
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error ${response.status}`);
+      if (!response.ok && !allowHttpError) {
+        const error = new Error(responseMessage(data, response.status));
+        error.status = response.status;
+        error.data = data;
+        throw error;
       }
 
-      return data;
+      return {
+        ok: response.ok,
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        data,
+      };
     } catch (err) {
       lastErr = err;
       const cause = err?.cause?.code || err?.cause?.message || err?.cause || '';
@@ -78,4 +142,14 @@ const fetchApi = async (endpoint, method = 'GET', body = null) => {
   throw lastErr;
 };
 
-export { fetchApi };
+const fetchApi = async (endpoint, method = 'GET', body = null) => {
+  const response = await fetchApiResponse(endpoint, { method, body });
+  return response.data;
+};
+
+const fetchAppApi = async (endpoint, method = 'GET', body = null, tenant) => {
+  const response = await fetchApiResponse(endpoint, { method, body, tenant });
+  return response.data;
+};
+
+export { fetchApi, fetchApiResponse, fetchAppApi };

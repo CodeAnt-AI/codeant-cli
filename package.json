@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Code review CLI tool",
   "type": "module",
   "bin": {
@@ -19,10 +19,7 @@
   ],
   "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/CodeAnt-AI/codeant-cli"
-  },
+  "homepage": "https://docs.codeant.ai/cli/setup",
   "main": "./src/reviewHeadless.js",
   "exports": {
     ".": "./src/reviewHeadless.js",
@@ -34,10 +31,19 @@
     "./scans/scan-history": "./src/scans/getScanHistory.js",
     "./scans/fetch-results": "./src/scans/fetchScanResults.js",
     "./scans/fetch-advanced-results": "./src/scans/fetchAdvancedScanResults.js",
-    "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js"
+    "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js",
+    "./hotlist": "./src/hotlist/client.js",
+    "./findings/cloud": "./src/findings/cloud.js",
+    "./findings/pentest": "./src/findings/pentest.js",
+    "./findings/antipatterns": "./src/findings/antipatterns.js",
+    "./api": "./src/commands/api/request.js"
   },
   "files": [
-    "src"
+    "src",
+    "findings.md",
+    "cli-api.md",
+    "scans.md",
+    "mcp.md"
   ],
   "dependencies": {
     "@gitbeaker/rest": "^43.8.0",

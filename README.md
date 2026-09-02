@@ -8,14 +8,7 @@ A command-line tool for code review and security scanning.
 npm install -g codeant-cli
 ```
 
-Or run locally:
-
-```bash
-git clone https://github.com/codeantai/codeant-cli.git
-cd codeant-cli
-npm install
-npm link
-```
+For installation, authentication, and self-hosted setup, see the [CodeAnt CLI setup guide](https://docs.codeant.ai/cli/setup).
 
 ## Quick Start
 
@@ -131,6 +124,40 @@ Show the current API base URL and its source.
 codeant get-base-url
 ```
 
+#### `hotlist`
+
+Query the same organization-wide prioritized findings shown in the CodeAnt Hotlist, or fetch one finding by its stable ID.
+
+```bash
+codeant hotlist list --org CodeAnt-AI --service github --severity critical,high
+codeant hotlist get 0123456789abcdef0123456789abcdef --org CodeAnt-AI --service github
+```
+
+#### `findings`
+
+Access repository, organization Hotlist, cloud-security, anti-pattern, and pentest findings through one command group.
+
+```bash
+codeant findings repos --org CodeAnt-AI
+codeant findings repo --repo CodeAnt-AI/example --types sast,sca,iac,anti_patterns
+codeant findings list --severity critical,high
+codeant findings cloud history --provider all
+codeant findings pentest history
+```
+
+See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for the complete command and agent manual.
+
+#### `api request`
+
+Call any CodeAnt application API using the saved bearer token. Only relative paths on the configured CodeAnt API host are accepted.
+
+```bash
+codeant api request GET /some/read/endpoint --org CodeAnt-AI --service github --query '{"page":1}'
+codeant api request POST /some/app/endpoint --org CodeAnt-AI --service github --body '{"repo":"CodeAnt-AI/example"}'
+```
+
+See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for all finding commands, authentication, self-hosted provider, and agent/MCP details.
+
 ### Global Options
 
 ```bash
@@ -240,11 +267,11 @@ node src/index.js secrets --all
 
 This package also ships an MCP (Model Context Protocol) server that exposes CodeAnt's scan, review, and PR data as tools to Claude and other MCP clients. The same source tree is packaged as a Desktop Extension (`.mcpb`) for one-click install in Claude Desktop.
 
-See [mcp.md](mcp.md) for the tools listing, install paths (Claude Code CLI, Claude Desktop manual config, MCPB double-click), and bundling/submission instructions.
+See the [CodeAnt MCP server documentation](https://docs.codeant.ai/cli/mcp-server) for the tools listing and installation paths. See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for Hotlist and authenticated API usage.
 
 ## Privacy Policy
 
-Full policy: **https://codeant.ai/privacy**
+Full policy: **https://www.codeant.ai/privacy-policy**
 
 Summary of what this CLI / MCP server sends and stores:
 
