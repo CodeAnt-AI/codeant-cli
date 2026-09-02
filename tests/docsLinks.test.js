@@ -6,12 +6,13 @@ const forbiddenRepoReferences = [
   ['codeant-ai', 'codeant-cli'].join('/'),
   ['codeantai', 'codeant-cli'].join('/'),
 ];
+const requiredMachineMetadataFiles = new Set(['package.json']);
 
 describe('public documentation links', () => {
-  it('does not reference the CodeAnt CLI GitHub repository', () => {
+  it('does not reference the CodeAnt CLI GitHub repository outside required package metadata', () => {
     const trackedFiles = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
       .split('\0')
-      .filter(Boolean);
+      .filter((file) => file && !requiredMachineMetadataFiles.has(file));
 
     const matches = trackedFiles.filter((file) => {
       const contents = readFileSync(file, 'utf8').toLowerCase();

@@ -3,8 +3,12 @@
   "version": "0.5.5",
   "description": "Code review CLI tool",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodeAnt-AI/codeant-cli.git"
+  },
   "bin": {
-    "codeant": "./src/index.js"
+    "codeant": "src/index.js"
   },
   "scripts": {
     "start": "node src/index.js",
