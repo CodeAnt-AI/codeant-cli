@@ -19,6 +19,7 @@ describe('npm publish metadata', () => {
 
     const binUrl = new URL(`../${packageJson.bin.codeant}`, import.meta.url);
     const binContents = readFileSync(fileURLToPath(binUrl), 'utf8');
-    expect(binContents.startsWith('#!/usr/bin/env node')).toBe(true);
+    const firstLine = binContents.split(/\r?\n/, 1)[0];
+    expect(firstLine).toBe('#!/usr/bin/env node');
   });
 });
