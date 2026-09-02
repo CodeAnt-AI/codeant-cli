@@ -30,7 +30,15 @@ export default function Login() {
     let timeoutId;
 
     (async () => {
-      const dashboardUrl = await getDashboardUrl();
+      let dashboardUrl;
+      try {
+        dashboardUrl = await getDashboardUrl();
+      } catch (err) {
+        setError(err.message);
+        setStatus('error');
+        setTimeout(() => exit(err), 100);
+        return;
+      }
       const loginUrl = `${dashboardUrl}?ideLoginToken=${token}`;
       setLoginUrl(loginUrl);
 

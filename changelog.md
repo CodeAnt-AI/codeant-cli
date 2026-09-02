@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.4] - 27/08/2026
+- Stop silently falling back to app.codeant.ai for login on a custom/self-hosted base URL
+- Added `set-dashboard-url`, `get-dashboard-url`, and `remove-dashboard-url` commands to explicitly configure the login dashboard URL
+
 ## [0.5.3] - 24/08/2026
 - Improved consistency between interactive and headless local reviews
 - Added shared multi-file planning and verification before returning findings
