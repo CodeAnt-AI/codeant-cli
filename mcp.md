@@ -37,7 +37,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 
 Write tools are only registered when `CODEANT_READ_ONLY=0`. Default = read-only.
 
-For the complete finding coverage and examples, see [findings.md](findings.md). For raw API syntax, tenant/provider selection, and response details, see [cli-api.md](cli-api.md).
+For complete finding coverage, examples, tenant/provider selection, and response details, see the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).
 
 Every tool carries MCP annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so the client can decide whether to auto-approve calls.
 

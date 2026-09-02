@@ -8,14 +8,7 @@ A command-line tool for code review and security scanning.
 npm install -g codeant-cli
 ```
 
-Or run locally:
-
-```bash
-git clone https://github.com/codeantai/codeant-cli.git
-cd codeant-cli
-npm install
-npm link
-```
+For installation, authentication, and self-hosted setup, see the [CodeAnt CLI setup guide](https://docs.codeant.ai/cli/setup).
 
 ## Quick Start
 
@@ -152,7 +145,7 @@ codeant findings cloud history --provider all
 codeant findings pentest history
 ```
 
-See [findings.md](findings.md) for the complete command and agent manual.
+See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for the complete command and agent manual.
 
 #### `api request`
 
@@ -163,7 +156,7 @@ codeant api request GET /some/read/endpoint --org CodeAnt-AI --service github --
 codeant api request POST /some/app/endpoint --org CodeAnt-AI --service github --body '{"repo":"CodeAnt-AI/example"}'
 ```
 
-See [findings.md](findings.md) for all finding commands and [cli-api.md](cli-api.md) for raw API, authentication, self-hosted provider, and agent/MCP details.
+See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for all finding commands, authentication, self-hosted provider, and agent/MCP details.
 
 ### Global Options
 
@@ -274,7 +267,7 @@ node src/index.js secrets --all
 
 This package also ships an MCP (Model Context Protocol) server that exposes CodeAnt's scan, review, and PR data as tools to Claude and other MCP clients. The same source tree is packaged as a Desktop Extension (`.mcpb`) for one-click install in Claude Desktop.
 
-See [mcp.md](mcp.md) for the tools listing, install paths (Claude Code CLI, Claude Desktop manual config, MCPB double-click), and bundling/submission instructions. See [cli-api.md](cli-api.md) for Hotlist and generic authenticated API usage.
+See the [CodeAnt MCP server documentation](https://docs.codeant.ai/cli/mcp-server) for the tools listing and installation paths. See the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings) for Hotlist and authenticated API usage.
 
 ## Privacy Policy
 

@@ -160,4 +160,4 @@ All these tools are available in the default read-only MCP mode. A typical agent
 | Report or scan not found | Use the corresponding history command and verify the selected tenant/provider. |
 | Redacted pentest fields | Unlock the engagement in the app; CLI access follows the same entitlement. |
 
-For the generic authenticated API escape hatch and authentication details, see [cli-api.md](cli-api.md).
+For current authentication, finding coverage, and agent guidance, see the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).

@@ -10,13 +10,9 @@
     "email": "support@codeant.ai",
     "url": "https://codeant.ai"
   },
-  "homepage": "https://codeant.ai",
-  "documentation": "https://github.com/CodeAnt-AI/codeant-cli#readme",
-  "support": "https://github.com/CodeAnt-AI/codeant-cli/issues",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/CodeAnt-AI/codeant-cli"
-  },
+  "homepage": "https://docs.codeant.ai/cli/mcp-server",
+  "documentation": "https://docs.codeant.ai/cli/mcp-server",
+  "support": "https://docs.codeant.ai/cli/setup",
   "license": "MIT",
   "keywords": [
     "code-review",

@@ -247,11 +247,11 @@ All options are optional — `repo`, `branch`, and `commit` are auto-detected fr
 codeant scans start-scan
 
 # Explicit repo and branch
-codeant scans start-scan --repo CodeAnt-AI/codeant-cli --branch main
+codeant scans start-scan --repo your-org/your-repo --branch main
 
 # Explicit commit SHA
 codeant scans start-scan \
-  --repo CodeAnt-AI/codeant-cli \
+  --repo your-org/your-repo \
   --branch main \
   --commit b509bffa1721da442f35a7ccab969822711a67f0
 

@@ -19,10 +19,7 @@
   ],
   "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/CodeAnt-AI/codeant-cli"
-  },
+  "homepage": "https://docs.codeant.ai/cli/setup",
   "main": "./src/reviewHeadless.js",
   "exports": {
     ".": "./src/reviewHeadless.js",

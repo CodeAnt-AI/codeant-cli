@@ -59,7 +59,7 @@ For self-hosted GitHub, GitLab, Bitbucket, or Azure DevOps, the CLI normally dis
 
 ## All findings
 
-Use `codeant findings` for first-class access to repository findings, organization Hotlist and anti-pattern findings, AWS/Azure/GCP cloud-security findings, and pentest engagements. The full command matrix, provider-specific fields, examples, and agent workflow are documented in [findings.md](findings.md).
+Use `codeant findings` for first-class access to repository findings, organization Hotlist and anti-pattern findings, AWS/Azure/GCP cloud-security findings, and pentest engagements. The full command matrix, provider-specific fields, examples, and agent workflow are documented in the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).
 
 ## Any app API
 

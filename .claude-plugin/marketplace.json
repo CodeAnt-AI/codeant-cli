@@ -18,8 +18,7 @@
         "name": "CodeAnt AI",
         "email": "support@codeant.ai"
       },
-      "homepage": "https://codeant.ai",
-      "repository": "https://github.com/CodeAnt-AI/codeant-cli",
+      "homepage": "https://docs.codeant.ai/cli/claude-code-integration",
       "license": "MIT",
       "keywords": [
         "code-review",
