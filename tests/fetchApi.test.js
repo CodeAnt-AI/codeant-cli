@@ -87,4 +87,23 @@ describe('fetchApi', () => {
 
     await expect(fetchApi('/missing')).rejects.toThrow('Finding not found');
   });
+
+  it('passes an abort signal to fetch', async () => {
+    const controller = new AbortController();
+    fetch.mockResolvedValue(new Response('{}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await fetchApiResponse('/extension/logout', {
+      method: 'POST',
+      body: {},
+      signal: controller.signal,
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.codeant.test/extension/logout',
+      expect.objectContaining({ signal: controller.signal }),
+    );
+  });
 });

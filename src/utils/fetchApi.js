@@ -66,6 +66,7 @@ const fetchApiResponse = async (endpoint, {
   query = null,
   allowHttpError = false,
   tenant = null,
+  signal = undefined,
 } = {}) => {
   const baseUrl = getBaseUrl();
   const resolvedUrl = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
@@ -93,6 +94,9 @@ const fetchApiResponse = async (endpoint, {
 
   if (body !== null && body !== undefined && !['GET', 'HEAD'].includes(normalizedMethod)) {
     options.body = JSON.stringify(body);
+  }
+  if (signal) {
+    options.signal = signal;
   }
 
   // Retry transient network/cold-start failures up to 2 times.
