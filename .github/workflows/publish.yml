@@ -23,4 +23,6 @@ jobs:
 
       - run: npm ci
 
+      - run: npm test -- tests/packageMetadata.test.js
+
       - run: npm publish --access public
