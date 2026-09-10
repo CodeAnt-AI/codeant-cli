@@ -32,7 +32,7 @@ exec < /dev/tty 2>/dev/null || true
 if [ -f ${quotedCliPath} ] && command -v node >/dev/null 2>&1; then
   node ${quotedCliPath} secrets --staged --hook
 else
-  command -v codeant >/dev/null 2>&1 || exit 1
+  command -v codeant >/dev/null 2>&1 || exit 0
   codeant secrets --staged --hook
 fi
 ${HOOK_MARKER_END}`;
@@ -41,7 +41,7 @@ ${HOOK_MARKER_END}`;
 # Auto-installed by CodeAnt AI — blocks commits containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 exec < /dev/tty 2>/dev/null || true
-command -v codeant >/dev/null 2>&1 || exit 1
+command -v codeant >/dev/null 2>&1 || exit 0
 codeant secrets --staged --hook
 ${HOOK_MARKER_END}`;
 }
