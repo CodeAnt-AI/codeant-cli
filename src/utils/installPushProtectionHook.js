@@ -6,7 +6,7 @@ const HOOK_MARKER = '# codeant-push-protection';
 const HOOK_MARKER_END = '# end-codeant-push-protection';
 
 /**
- * Build the full pre-push hook script (with shebang).
+ * Build the full pre-commit hook script (with shebang).
  */
 function buildHookScript(cliPath) {
   return `#!/bin/sh
@@ -21,27 +21,28 @@ ${buildHookBlock(cliPath)}
  */
 function buildHookBlock(cliPath) {
   if (cliPath) {
+    const quotedCliPath = `'${cliPath.replace(/'/g, "'\\''")}'`;
     return `${HOOK_MARKER}
-# Auto-installed by CodeAnt AI — blocks pushes containing secrets.
+# Auto-installed by CodeAnt AI — blocks commits containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 # Uses the CLI bundled with the VS Code extension.
 # Reopen stdin from terminal so the CLI can show an interactive bypass prompt.
-# In non-interactive environments (CI), this silently fails and the push is blocked.
+# In non-interactive environments (CI), this silently fails and the commit is blocked.
 exec < /dev/tty 2>/dev/null || true
-if [ -f "${cliPath}" ] && command -v node >/dev/null 2>&1; then
-  node "${cliPath}" secrets --committed --hook
+if [ -f ${quotedCliPath} ] && command -v node >/dev/null 2>&1; then
+  node ${quotedCliPath} secrets --staged --hook
 else
   command -v codeant >/dev/null 2>&1 || exit 0
-  codeant secrets --committed --hook
+  codeant secrets --staged --hook
 fi
 ${HOOK_MARKER_END}`;
   }
   return `${HOOK_MARKER}
-# Auto-installed by CodeAnt AI — blocks pushes containing secrets.
+# Auto-installed by CodeAnt AI — blocks commits containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 exec < /dev/tty 2>/dev/null || true
 command -v codeant >/dev/null 2>&1 || exit 0
-codeant secrets --committed --hook
+codeant secrets --staged --hook
 ${HOOK_MARKER_END}`;
 }
 
@@ -97,7 +98,7 @@ function getHooksDir(gitRoot) {
 }
 
 /**
- * Install a pre-push hook that runs secret scanning before push.
+ * Install a pre-commit hook that runs secret scanning before commit.
  *
  * @param {string} workspacePath - Path to the git repository
  * @param {string} [cliPath] - Absolute path to the codeant CLI entry point (from extension node_modules)
@@ -113,7 +114,7 @@ export function installPushProtectionHook(workspacePath, cliPath) {
   if (!existsSync(hooksDir)) {
     mkdirSync(hooksDir, { recursive: true });
   }
-  const hookPath = path.join(hooksDir, 'pre-push');
+  const hookPath = path.join(hooksDir, 'pre-commit');
 
   // If hook already exists, check if it's ours
   if (existsSync(hookPath)) {
@@ -127,14 +128,14 @@ export function installPushProtectionHook(workspacePath, cliPath) {
     }
     // There's a user-managed hook — append only for shell hooks to avoid breaking non-shell scripts
     const firstLine = existing.split('\n', 1)[0] || '';
-    const isShellHook = firstLine.startsWith('#!') ? /\/(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
+    const isShellHook = firstLine.startsWith('#!') ? /^#!\s*(?:\/\S*\/|\/usr\/bin\/env\s+(?:-S\s+)?)(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
     if (!isShellHook) {
-      return { installed: false, hookPath, message: 'Existing pre-push hook is non-shell; cannot append CodeAnt block safely' };
+      return { installed: false, hookPath, message: 'Existing pre-commit hook is non-shell; cannot append CodeAnt block safely' };
     }
     const appended = existing.trimEnd() + '\n\n' + buildHookBlock(cliPath) + '\n';
     writeFileSync(hookPath, appended, 'utf-8');
     chmodSync(hookPath, 0o755);
-    return { installed: true, hookPath, message: 'Hook appended to existing pre-push' };
+    return { installed: true, hookPath, message: 'Hook appended to existing pre-commit' };
   }
 
   writeFileSync(hookPath, buildHookScript(cliPath), 'utf-8');
@@ -143,7 +144,7 @@ export function installPushProtectionHook(workspacePath, cliPath) {
 }
 
 /**
- * Remove the CodeAnt pre-push hook (or just our section if appended).
+ * Remove the CodeAnt pre-commit hook (or just our section if appended).
  *
  * @param {string} workspacePath
  * @returns {{ removed: boolean, message: string }}
@@ -155,10 +156,10 @@ export function removePushProtectionHook(workspacePath) {
   }
 
   const hooksDir = getHooksDir(gitRoot);
-  const hookPath = path.join(hooksDir, 'pre-push');
+  const hookPath = path.join(hooksDir, 'pre-commit');
 
   if (!existsSync(hookPath)) {
-    return { removed: false, message: 'No pre-push hook found' };
+    return { removed: false, message: 'No pre-commit hook found' };
   }
 
   const content = readFileSync(hookPath, 'utf-8');
