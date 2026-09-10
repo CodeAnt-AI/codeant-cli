@@ -21,6 +21,7 @@ ${buildHookBlock(cliPath)}
  */
 function buildHookBlock(cliPath) {
   if (cliPath) {
+    const quotedCliPath = `'${cliPath.replace(/'/g, "'\\''")}'`;
     return `${HOOK_MARKER}
 # Auto-installed by CodeAnt AI — blocks commits containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
@@ -28,10 +29,10 @@ function buildHookBlock(cliPath) {
 # Reopen stdin from terminal so the CLI can show an interactive bypass prompt.
 # In non-interactive environments (CI), this silently fails and the commit is blocked.
 exec < /dev/tty 2>/dev/null || true
-if [ -f "${cliPath}" ] && command -v node >/dev/null 2>&1; then
-  node "${cliPath}" secrets --staged --hook
+if [ -f ${quotedCliPath} ] && command -v node >/dev/null 2>&1; then
+  node ${quotedCliPath} secrets --staged --hook
 else
-  command -v codeant >/dev/null 2>&1 || exit 0
+  command -v codeant >/dev/null 2>&1 || exit 1
   codeant secrets --staged --hook
 fi
 ${HOOK_MARKER_END}`;
@@ -40,7 +41,7 @@ ${HOOK_MARKER_END}`;
 # Auto-installed by CodeAnt AI — blocks commits containing secrets.
 # To disable: delete this hook or run "codeant push-protection disable"
 exec < /dev/tty 2>/dev/null || true
-command -v codeant >/dev/null 2>&1 || exit 0
+command -v codeant >/dev/null 2>&1 || exit 1
 codeant secrets --staged --hook
 ${HOOK_MARKER_END}`;
 }
@@ -127,7 +128,7 @@ export function installPushProtectionHook(workspacePath, cliPath) {
     }
     // There's a user-managed hook — append only for shell hooks to avoid breaking non-shell scripts
     const firstLine = existing.split('\n', 1)[0] || '';
-    const isShellHook = firstLine.startsWith('#!') ? /\/(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
+    const isShellHook = firstLine.startsWith('#!') ? /^#!\s*(?:\/\S*\/|\/usr\/bin\/env\s+(?:-S\s+)?)(ba|z|k)?sh(\s|$)/.test(firstLine) : true;
     if (!isShellHook) {
       return { installed: false, hookPath, message: 'Existing pre-commit hook is non-shell; cannot append CodeAnt block safely' };
     }
