@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.5.6] - 09/09/2026
+- Run secrets protection in a pre-commit hook with `--staged` instead of a pre-push hook.
+
 ## [0.5.4] - 27/08/2026
 - Stop silently falling back to app.codeant.ai for login on a custom/self-hosted base URL
 - Added `set-dashboard-url`, `get-dashboard-url`, and `remove-dashboard-url` commands to explicitly configure the login dashboard URL

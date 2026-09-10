@@ -72,7 +72,7 @@ program
   .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
   .option('--exclude <paths>', 'Comma-separated list of file paths glob patterns to exclude')
-  .option('--hook', 'Running from pre-push hook (enables bypass prompt)')
+  .option('--hook', 'Running from pre-commit hook (enables bypass prompt)')
   .action((options) => {
     let scanType = 'all';
     let lastNCommits = 1;

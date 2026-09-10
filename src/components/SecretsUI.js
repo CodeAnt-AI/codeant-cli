@@ -343,7 +343,7 @@ function BypassPrompt({ secrets, onSelect }) {
     { label: "It's used in tests", value: 'used_in_tests' },
     { label: "I'll fix it later", value: 'fix_later' },
     { label: 'Other (type your reason)', value: 'other' },
-    { label: 'Cancel \u2014 block this push', value: 'cancel' },
+    { label: 'Cancel \u2014 block this commit', value: 'cancel' },
   ];
 
   useInput((input, key) => {
