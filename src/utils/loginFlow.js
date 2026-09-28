@@ -10,7 +10,7 @@ export function isAlreadyLoggedIn() {
 }
 
 export async function startLoginFlow() {
-  const token = randomUUID();
+  const token = `cli___${randomUUID()}`;
   const baseUrl = getBaseUrl();
   const dashboardUrl = await getDashboardUrl();
   const loginUrl = `${dashboardUrl}?ideLoginToken=${token}`;
