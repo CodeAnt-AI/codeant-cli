@@ -22,7 +22,7 @@ export default function Login() {
       return;
     }
 
-    const token = randomUUID();
+    const token = `cli___${randomUUID()}`;
     const baseUrl = getBaseUrl();
     const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.5.7] - 28/09/2026
+- Login tokens are prefixed with `cli___` so CLI logins show up as CLI on the IDE users page
+
 ## [0.5.6] - 09/09/2026
 - Run secrets protection in a pre-commit hook with `--staged` instead of a pre-push hook.
 
