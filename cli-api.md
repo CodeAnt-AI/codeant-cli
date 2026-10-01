@@ -115,8 +115,9 @@ Run `codeant mcp` or install the CodeAnt MCP bundle. Agents receive dedicated re
 - `codeant_findings_antipatterns` — selected or all-repository anti-pattern findings.
 - `codeant_cloud_scan_history`, `codeant_cloud_findings_list`, `codeant_cloud_finding_get` — cloud scan discovery, findings, and detail.
 - `codeant_pentest_history`, `codeant_pentest_issues`, `codeant_pentest_report` — pentest engagement discovery and results.
+- `codeant_analysis_settings_get`, `codeant_recurring_scans_list`, `codeant_branches_list`, `codeant_cve_reporting_list` — analysis settings that sit behind POST endpoints, so `codeant_api_get` cannot reach them.
 
-Set `CODEANT_READ_ONLY=0` to opt in to write tools, including `codeant_api_request` for POST/PUT/PATCH/DELETE. Read-only mode is the default. The MCP server never opens a browser during startup; the agent must explicitly call `codeant_login` when no token is configured.
+Set `CODEANT_READ_ONLY=0` to opt in to write tools, including `codeant_api_request` for POST/PUT/PATCH/DELETE and `codeant_analysis_settings_update` / `codeant_recurring_scans_create` / `codeant_recurring_scans_update`. Read-only mode is the default. The MCP server never opens a browser during startup; the agent must explicitly call `codeant_login` when no token is configured.
 
 ## Troubleshooting
 

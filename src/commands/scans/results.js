@@ -14,6 +14,27 @@ import { FORMATTERS } from './formatters/index.js';
  * @param {object} opts
  */
 export async function runResults(opts = {}) {
+  const { format = 'json', output: outputPath = null } = opts;
+
+  const formatter = FORMATTERS[format];
+  if (!formatter) {
+    const err = new Error(`Unknown --format "${format}". Valid: ${Object.keys(FORMATTERS).join(', ')}`);
+    err.exitCode = 1;
+    throw err;
+  }
+
+  const envelope = await buildResultsEnvelope(opts);
+  const rendered = formatter.render(envelope);
+  emit(rendered, outputPath, envelope.findings.length);
+}
+
+/**
+ * Resolve, fetch, filter, sort, paginate and project scan findings.
+ * Returns the JSON envelope without writing anything to stdout.
+ *
+ * @param {object} opts
+ */
+export async function buildResultsEnvelope(opts = {}) {
   const {
     repo,
     scan,
@@ -24,8 +45,6 @@ export async function runResults(opts = {}) {
     check: checkRegex,
     filterDismissed = false,
     includeFalsePositives = true,
-    format = 'json',
-    output: outputPath = null,
     fields = null,
     limit = 100,
     offset = 0,
@@ -34,13 +53,6 @@ export async function runResults(opts = {}) {
 
   if (!repo) {
     const err = new Error('--repo is required');
-    err.exitCode = 1;
-    throw err;
-  }
-
-  const formatter = FORMATTERS[format];
-  if (!formatter) {
-    const err = new Error(`Unknown --format "${format}". Valid: ${Object.keys(FORMATTERS).join(', ')}`);
     err.exitCode = 1;
     throw err;
   }
@@ -145,7 +157,5 @@ export async function runResults(opts = {}) {
     });
   }
 
-  // 10. Render + emit
-  const rendered = formatter.render(envelope);
-  emit(rendered, outputPath, envelope.findings.length);
+  return envelope;
 }

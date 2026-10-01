@@ -147,6 +147,8 @@ Agents can use these read-only MCP tools:
 | `codeant_cloud_scan_history` | Discover AWS/Azure/GCP scan IDs and scopes. |
 | `codeant_cloud_findings_list`, `codeant_cloud_finding_get` | List cloud findings and retrieve full detail. |
 | `codeant_pentest_history`, `codeant_pentest_issues`, `codeant_pentest_report` | Discover and inspect pentest engagements. |
+| `codeant_secrets_local` | Scan local working-copy changes for secrets before they are pushed. |
+| `codeant_analysis_settings_get` | Check which analyzers are enabled when a repo-level category comes back empty. |
 
 All these tools are available in the default read-only MCP mode. A typical agent flow is discovery (`orgs` -> `repos`, cloud history, or pentest history), list/filter findings, then retrieve one detailed finding or report.
 

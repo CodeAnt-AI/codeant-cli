@@ -7,10 +7,11 @@ import { runOrgs } from '../commands/scans/orgs.js';
 import { runRepos } from '../commands/scans/repos.js';
 import { runHistory } from '../commands/scans/history.js';
 import { runGet } from '../commands/scans/get.js';
-import { runResults } from '../commands/scans/results.js';
+import { buildResultsEnvelope } from '../commands/scans/results.js';
 import { runDismissed } from '../commands/scans/dismissed.js';
 import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
+import { runSecretsHeadless } from '../secretsHeadless.js';
 import * as scm from '../scm/index.js';
 import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
 import { getConfigValue } from '../utils/config.js';
@@ -20,6 +21,10 @@ import { runApiRequest } from '../commands/api/request.js';
 import { runOrganizationAntipatterns } from '../findings/antipatterns.js';
 import { runCloudFindingGet, runCloudFindings, runCloudHistory } from '../findings/cloud.js';
 import { runPentestHistory, runPentestIssues, runPentestReport } from '../findings/pentest.js';
+import { runAnalysisFeatureFlagsGet, runAnalysisFeatureFlagsUpdate } from '../commands/settings/analysis-feature-flags.js';
+import { runRecurringScanslist, runRecurringScansCreate, runRecurringScansUpdate } from '../commands/settings/recurring-scans.js';
+import { runBranchesAll, runBranchesDefault } from '../commands/settings/branches.js';
+import { runCveReportingList } from '../commands/settings/cve-reporting.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -55,20 +60,34 @@ function resolveRepoOpts(input) {
   return { ...input, remote, name, defaultBranch };
 }
 
-// Capture stdout from a function that writes JSON to stdout (used for `scans results` and `scans start-scan`).
-async function captureStdout(fn) {
-  const chunks = [];
-  const origWrite = process.stdout.write.bind(process.stdout);
-  process.stdout.write = (chunk) => {
-    chunks.push(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
-    return true;
+// The settings runners take JSON config as strings (they come from CLI flags).
+function jsonString(value) {
+  return value === undefined ? undefined : JSON.stringify(value);
+}
+
+// Shared by the local review and local secrets tools.
+const LOCAL_SCOPE_SCHEMA = {
+  scope: z
+    .enum(['all', 'uncommitted', 'staged-only', 'committed', 'last-commit', 'last-n-commits', 'base-branch', 'base-commit'])
+    .optional()
+    .describe('Which local changes to include. Default "uncommitted".'),
+  lastNCommits: z.number().int().positive().max(5).optional(),
+  baseBranch: z.string().optional(),
+  baseCommit: z.string().optional(),
+  include: z.array(z.string()).optional().describe('Glob patterns to include.'),
+  exclude: z.array(z.string()).optional().describe('Glob patterns to exclude.'),
+};
+
+function localScopeOptions(input) {
+  return {
+    workspacePath: process.cwd(),
+    scanType: input.scope ?? 'uncommitted',
+    lastNCommits: input.lastNCommits ?? 1,
+    include: input.include ?? [],
+    exclude: input.exclude ?? [],
+    baseBranch: input.baseBranch ?? null,
+    baseCommit: input.baseCommit ?? null,
   };
-  try {
-    await fn();
-  } finally {
-    process.stdout.write = origWrite;
-  }
-  return chunks.join('');
 }
 
 async function ensureAuthenticated() {
@@ -82,9 +101,7 @@ async function ensureAuthenticated() {
   console.error('[codeant-mcp] No API token configured. Call the codeant_login tool to sign in, or set CODEANT_API_TOKEN.');
 }
 
-export async function startMcpServer() {
-  await ensureAuthenticated();
-
+export function createMcpServer() {
   const server = new McpServer({ name: 'codeant', version: pkg.version });
   const readOnly = isReadOnly();
 
@@ -143,9 +160,9 @@ export async function startMcpServer() {
       description: 'Get summary metadata for a single scan (severity + category counts only — no findings). Use this to size up a scan before pulling full results.',
       inputSchema: {
         repo: z.string().describe('Repository in owner/repo form.'),
-        scan: z.string().optional().describe('Specific commit SHA. Either `scan` or `branch` should be provided.'),
-        branch: z.string().optional().describe('Resolve the latest scan on this branch.'),
-        types: z.string().optional().describe('Comma-separated scan types (default "all"). e.g. "sast,secrets".'),
+        scan: z.string().optional().describe('Specific commit SHA. Takes precedence over `branch`.'),
+        branch: z.string().optional().describe('Resolve the latest scan on this branch. Omit both `scan` and `branch` to use the latest scan on any branch.'),
+        types: z.string().optional().describe('Comma-separated types: sast,sca,secrets,iac,dead_code,sbom,anti_patterns,docstring,complex_functions,all (default "all").'),
       },
       annotations: READ,
     },
@@ -178,8 +195,8 @@ export async function startMcpServer() {
     },
     async (input) => {
       try {
-        const text = await captureStdout(() =>
-          runResults({
+        return ok(
+          await buildResultsEnvelope({
             repo: input.repo,
             scan: input.scan,
             branch: input.branch,
@@ -189,16 +206,12 @@ export async function startMcpServer() {
             check: input.check,
             filterDismissed: input.filterDismissed ?? false,
             includeFalsePositives: input.includeFalsePositives ?? true,
-            format: 'json',
-            output: undefined,
             fields: input.fields,
             limit: input.limit ?? 100,
             offset: input.offset ?? 0,
             failFast: false,
           })
         );
-        // runResults already emits JSON; pass it through unparsed to preserve shape.
-        return { content: [{ type: 'text', text: text || '{}' }] };
       } catch (err) {
         return fail(err);
       }
@@ -232,8 +245,8 @@ export async function startMcpServer() {
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
         providerBaseUrl: z.string().url().optional().describe('Override only for a self-hosted provider.'),
         search: z.string().optional(),
-        types: z.array(z.string()).optional(),
-        locations: z.array(z.string()).optional(),
+        types: z.array(z.string()).optional().describe('Finding types: SAST, SCA, Secrets, IaC, Infrastructure, AI Exploitation.'),
+        locations: z.array(z.string()).optional().describe('Repositories or cloud accounts.'),
         severities: z.array(z.enum(['critical', 'high', 'medium', 'low', 'unknown'])).optional(),
         ticketStatuses: z.array(z.enum(['created', 'not_created'])).optional(),
         compliance: z.array(z.string()).optional(),
@@ -423,7 +436,7 @@ export async function startMcpServer() {
     'codeant_api_get',
     {
       title: 'Call a CodeAnt GET API',
-      description: 'Call any authenticated GET endpoint on the configured CodeAnt API host. The path must be relative (for example /extension/scans2/validate); absolute URLs are rejected.',
+      description: 'Call any authenticated GET endpoint on the configured CodeAnt API host, for read APIs that have no dedicated tool yet. The path must be relative and start with `/`; absolute URLs are rejected. Most existing CodeAnt app endpoints are POST — prefer the dedicated codeant_* tools for scans, findings, and analysis settings.',
       inputSchema: {
         path: z.string().startsWith('/'),
         org: z.string().optional().describe('Organization name. Required when the login has multiple matching connections.'),
@@ -578,34 +591,110 @@ export async function startMcpServer() {
     {
       title: 'Review local working-copy changes',
       description: 'Run a CodeAnt AI review on local working-copy changes and return the findings as JSON. Does not modify files — pair with editor tools to apply fixes. Use this for "review my changes" / "check my staged files" prompts.',
-      inputSchema: {
-        scope: z
-          .enum(['all', 'uncommitted', 'staged-only', 'committed', 'last-commit', 'last-n-commits', 'base-branch', 'base-commit'])
-          .optional()
-          .describe('Review scope. Default "uncommitted".'),
-        lastNCommits: z.number().int().positive().max(5).optional(),
-        baseBranch: z.string().optional(),
-        baseCommit: z.string().optional(),
-        include: z.array(z.string()).optional().describe('Glob patterns to include.'),
-        exclude: z.array(z.string()).optional().describe('Glob patterns to exclude.'),
-      },
+      inputSchema: LOCAL_SCOPE_SCHEMA,
       annotations: READ,
     },
     async (input) => {
       try {
         const result = await runReviewHeadless({
-          workspacePath: process.cwd(),
-          scanType: input.scope ?? 'uncommitted',
-          lastNCommits: input.lastNCommits ?? 1,
-          include: input.include ?? [],
-          exclude: input.exclude ?? [],
-          baseBranch: input.baseBranch ?? null,
-          baseCommit: input.baseCommit ?? null,
+          ...localScopeOptions(input),
           onProgress: () => {},
           onFilesReady: () => {},
         });
         return ok(result);
       } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_secrets_local',
+    {
+      title: 'Scan local changes for secrets',
+      description: 'Scan local working-copy changes for hard-coded secrets (API keys, tokens, private keys) using the same rules as `codeant secrets`. Runs entirely on this machine and does not modify files or report to CodeAnt. Secret values are masked in the output. Use this for "check my changes for secrets" prompts; for secrets already found by a cloud scan use codeant_scans_results with types="secrets".',
+      inputSchema: LOCAL_SCOPE_SCHEMA,
+      annotations: { ...READ, openWorldHint: false },
+    },
+    async (input) => {
+      try { return ok(await runSecretsHeadless(localScopeOptions(input))); } catch (err) { return fail(err); }
+    }
+  );
+
+  // ─── Analysis settings (read) ────────────────────────────────────────────
+  server.registerTool(
+    'codeant_analysis_settings_get',
+    {
+      title: 'Get analysis settings for a repo',
+      description: 'Get the analysis feature flags for a repository — which static analyzers (SAST, SCA, secrets, IaC, dead code, etc.) are enabled. Use this to explain why a scan category is empty.',
+      inputSchema: {
+        repo: z.string().describe('Repository in owner/repo form.'),
+      },
+      annotations: READ,
+    },
+    async ({ repo }) => {
+      try { return ok(await runAnalysisFeatureFlagsGet({ repo })); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_recurring_scans_list',
+    {
+      title: 'List recurring scan schedules',
+      description: 'List recurring scan schedules, optionally filtered by repository, status, or schedule ID.',
+      inputSchema: {
+        repo: z.string().optional().describe('Repository in owner/repo form.'),
+        status: z.string().optional().describe('Filter by status (e.g. ACTIVE).'),
+        scheduleId: z.string().optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runRecurringScanslist(input)); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_branches_list',
+    {
+      title: 'List repository branches',
+      description: 'List the branches CodeAnt knows for a repository and its configured default branch. Use this to pick a `branch` for codeant_scans_results or codeant_scans_start. Large repos have hundreds of branches — pass `search` to narrow the list.',
+      inputSchema: {
+        repo: z.string().describe('Repository in owner/repo form.'),
+        search: z.string().optional().describe('Case-insensitive substring filter on branch names.'),
+        limit: z.number().int().positive().max(1000).optional().describe('Max branches returned (default 50).'),
+      },
+      annotations: READ,
+    },
+    async ({ repo, search, limit = 50 }) => {
+      try {
+        const [defaultBranch, all] = await Promise.all([runBranchesDefault({ repo }), runBranchesAll({ repo })]);
+        if (!Array.isArray(all?.branches)) return ok({ repo, default: defaultBranch, all });
+        const needle = search?.toLowerCase();
+        const matches = needle ? all.branches.filter((b) => String(b).toLowerCase().includes(needle)) : all.branches;
+        return ok({
+          repo,
+          default: defaultBranch?.branch ?? defaultBranch,
+          total: matches.length,
+          truncated: matches.length > limit,
+          branches: matches.slice(0, limit),
+        });
+      } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_cve_reporting_list',
+    {
+      title: 'List CVE report configurations',
+      description: 'List scheduled CVE report configurations, optionally filtered by repository, status, or report ID.',
+      inputSchema: {
+        repo: z.string().optional().describe('Repository in owner/repo form.'),
+        status: z.string().optional().describe('Filter by status (e.g. ACTIVE).'),
+        reportId: z.string().optional(),
+      },
+      annotations: READ,
+    },
+    async (input) => {
+      try { return ok(await runCveReportingList(input)); } catch (err) { return fail(err); }
     }
   );
 
@@ -680,7 +769,7 @@ export async function startMcpServer() {
       'codeant_scans_start',
       {
         title: 'Trigger a new scan',
-        description: 'Trigger a new scan run for a repository. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0.',
+        description: 'Trigger a new scan run for a repository. Repo, branch, and commit are auto-detected from the MCP server\'s working directory when omitted; the resolved values are returned. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0.',
         inputSchema: {
           repo: z.string().optional().describe('owner/repo (auto-detected from git remote if omitted).'),
           branch: z.string().optional(),
@@ -691,10 +780,7 @@ export async function startMcpServer() {
         annotations: WRITE_NON_DESTRUCTIVE,
       },
       async (input) => {
-        try {
-          const text = await captureStdout(() => runStartScan(input));
-          return { content: [{ type: 'text', text: text || '{}' }] };
-        } catch (err) { return fail(err); }
+        try { return ok(await runStartScan(input)); } catch (err) { return fail(err); }
       }
     );
 
@@ -729,8 +815,87 @@ export async function startMcpServer() {
         } catch (err) { return fail(err); }
       }
     );
+
+    server.registerTool(
+      'codeant_analysis_settings_update',
+      {
+        title: 'Update analysis settings for a repo',
+        description: 'Enable or disable analysis feature flags for a repository (e.g. {"sast_analysis":"enabled"}). Call codeant_analysis_settings_get first to see the current keys. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0.',
+        inputSchema: {
+          repo: z.string().describe('Repository in owner/repo form.'),
+          flags: z.record(z.unknown()).describe('Feature flags to set, keyed by flag name.'),
+        },
+        annotations: WRITE_NON_DESTRUCTIVE,
+      },
+      async ({ repo, flags }) => {
+        try { return ok(await runAnalysisFeatureFlagsUpdate({ repo, flags: jsonString(flags) })); } catch (err) { return fail(err); }
+      }
+    );
+
+    server.registerTool(
+      'codeant_recurring_scans_create',
+      {
+        title: 'Create a recurring scan schedule',
+        description: 'Create a recurring scan schedule. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0.',
+        inputSchema: {
+          name: z.string(),
+          repo: z.string().optional().describe('Repository in owner/repo form.'),
+          scheduleConfig: z.record(z.unknown()).optional().describe('e.g. {"frequency":"weekly"}'),
+          scanConfig: z.record(z.unknown()).optional(),
+          description: z.string().optional(),
+          notificationConfig: z.record(z.unknown()).optional(),
+          createdBy: z.string().optional(),
+        },
+        annotations: WRITE_NON_DESTRUCTIVE,
+      },
+      async (input) => {
+        try {
+          return ok(await runRecurringScansCreate({
+            ...input,
+            scheduleConfig: jsonString(input.scheduleConfig),
+            scanConfig: jsonString(input.scanConfig),
+            notificationConfig: jsonString(input.notificationConfig),
+          }));
+        } catch (err) { return fail(err); }
+      }
+    );
+
+    server.registerTool(
+      'codeant_recurring_scans_update',
+      {
+        title: 'Update a recurring scan schedule',
+        description: 'Update a recurring scan schedule, including pausing it with status INACTIVE. WRITE OPERATION — only enabled when CODEANT_READ_ONLY=0.',
+        inputSchema: {
+          scheduleId: z.string(),
+          repo: z.string().describe('Repository in owner/repo form.'),
+          status: z.string().optional().describe('e.g. ACTIVE, INACTIVE'),
+          name: z.string().optional(),
+          description: z.string().optional(),
+          scheduleConfig: z.record(z.unknown()).optional(),
+          scanConfig: z.record(z.unknown()).optional(),
+          notificationConfig: z.record(z.unknown()).optional(),
+        },
+        annotations: { ...WRITE_NON_DESTRUCTIVE, idempotentHint: true },
+      },
+      async (input) => {
+        try {
+          return ok(await runRecurringScansUpdate({
+            ...input,
+            scheduleConfig: jsonString(input.scheduleConfig),
+            scanConfig: jsonString(input.scanConfig),
+            notificationConfig: jsonString(input.notificationConfig),
+          }));
+        } catch (err) { return fail(err); }
+      }
+    );
   }
 
+  return server;
+}
+
+export async function startMcpServer() {
+  await ensureAuthenticated();
+  const server = createMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

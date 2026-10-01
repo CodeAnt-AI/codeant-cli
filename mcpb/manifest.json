@@ -4,7 +4,7 @@
   "display_name": "CodeAnt AI",
   "version": "0.5.3",
   "description": "Drive CodeAnt AI security scans and code review from Claude — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
-  "long_description": "CodeAnt AI inside Claude. Ask things like \"show my highest-priority Hotlist findings\", \"list AWS cloud findings\", \"show this pentest report\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 23 read-only tools, including repository, Hotlist, cloud security, anti-pattern, and pentest findings plus an authenticated GET escape hatch for new APIs, and 3 opt-in write tools gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai. To authenticate, call the `codeant_login` tool — it opens the CodeAnt sign-in page in your browser and saves the token automatically.\n\nCollects anonymous usage telemetry via PostHog by default; set CODEANT_TELEMETRY_DISABLED=1 to opt out.",
+  "long_description": "CodeAnt AI inside Claude. Ask things like \"show my highest-priority Hotlist findings\", \"list AWS cloud findings\", \"show this pentest report\", or \"review my staged changes\" — Claude calls the CodeAnt API directly via this MCP server.\n\nIncludes 26 read-only tools, covering repository scan findings, local review and secrets scans, analysis settings, Hotlist, cloud security, anti-pattern, and pentest findings, plus an authenticated GET escape hatch for new APIs. There are also 2 sign-in tools and 6 opt-in write tools gated behind a setting.\n\nRequires a CodeAnt account. Sign up at https://codeant.ai. To authenticate, call the `codeant_login` tool — it opens the CodeAnt sign-in page in your browser and saves the token automatically.\n\nCollects anonymous usage telemetry via PostHog by default; set CODEANT_TELEMETRY_DISABLED=1 to opt out.",
   "author": {
     "name": "CodeAnt AI",
     "email": "support@codeant.ai",
@@ -76,11 +76,19 @@
     { "name": "codeant_pr_comments", "description": "List comments on a PR/MR with optional filters." },
     { "name": "codeant_comments_search", "description": "Search across CodeAnt review comments by free-text query." },
     { "name": "codeant_review_local", "description": "Run a CodeAnt AI review on local working-copy changes." },
+    { "name": "codeant_secrets_local", "description": "Scan local working-copy changes for hard-coded secrets (runs locally, values masked)." },
+    { "name": "codeant_analysis_settings_get", "description": "Get which static analyzers are enabled for a repository." },
+    { "name": "codeant_recurring_scans_list", "description": "List recurring scan schedules." },
+    { "name": "codeant_branches_list", "description": "List a repository's branches and its default branch." },
+    { "name": "codeant_cve_reporting_list", "description": "List scheduled CVE report configurations." },
     { "name": "codeant_login", "description": "Open app.codeant.ai in the browser and poll until the user completes sign-in; saves the resulting API token." },
     { "name": "codeant_logout", "description": "Clear the saved API token and sign out of CodeAnt AI." },
     { "name": "codeant_scans_start", "description": "Trigger a new scan run (write — gated behind read_only=false)." },
     { "name": "codeant_pr_resolve", "description": "Resolve a PR conversation thread (write — gated behind read_only=false)." },
-    { "name": "codeant_api_request", "description": "Call an authenticated POST, PUT, PATCH, or DELETE API (write — gated behind read_only=false)." }
+    { "name": "codeant_api_request", "description": "Call an authenticated POST, PUT, PATCH, or DELETE API (write — gated behind read_only=false)." },
+    { "name": "codeant_analysis_settings_update", "description": "Enable or disable static analyzers for a repository (write — gated behind read_only=false)." },
+    { "name": "codeant_recurring_scans_create", "description": "Create a recurring scan schedule (write — gated behind read_only=false)." },
+    { "name": "codeant_recurring_scans_update", "description": "Update or pause a recurring scan schedule (write — gated behind read_only=false)." }
   ],
   "user_config": {
     "api_token": {
@@ -101,7 +109,7 @@
     "read_only": {
       "type": "boolean",
       "title": "Read-only mode",
-      "description": "When enabled, write tools (trigger scan, resolve PR thread) are hidden. Recommended.",
+      "description": "When enabled, write tools (trigger scan, resolve PR thread, change analysis settings or schedules, raw write API) are hidden. Recommended.",
       "required": false,
       "default": true
     },

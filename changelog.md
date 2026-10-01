@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.8] - 01/10/2026
+- MCP: parallel `codeant_scans_results` calls no longer hijack the server's stdout and drop responses
+- MCP: `codeant_scans_start` returns the resolved repo, branch, and commit
+- MCP: added `codeant_secrets_local` for local secrets scans
+- MCP: added `codeant_analysis_settings_get`, `codeant_recurring_scans_list`, `codeant_branches_list`, and `codeant_cve_reporting_list`
+- MCP: added gated `codeant_analysis_settings_update`, `codeant_recurring_scans_create`, and `codeant_recurring_scans_update`
+- Removed a debug log that dumped full SAST/anti-pattern/docstring/complex-function responses to stderr
+
 ## [0.5.7] - 28/09/2026
 - Login tokens are prefixed with `cli___` so CLI logins show up as CLI on the IDE users page
 

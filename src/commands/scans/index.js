@@ -133,13 +133,14 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--exclude <paths>', 'Comma-separated file path glob patterns to exclude')
     .action(async (opts) => {
       try {
-        await runStartScan({
+        const result = await runStartScan({
           repo: opts.repo,
           branch: opts.branch,
           commit: opts.commit,
           include: opts.include,
           exclude: opts.exclude,
         });
+        console.log(result.message);
       } catch (err) {
         process.stderr.write(JSON.stringify({ error: err.message }) + '\n');
         process.exit(err.exitCode ?? 1);

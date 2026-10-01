@@ -1,6 +1,6 @@
 {
   "name": "codeant",
-  "version": "0.4.14",
+  "version": "0.5.8",
   "description": "CodeAnt AI MCP server inside Claude Code — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
   "author": {
     "name": "CodeAnt AI",

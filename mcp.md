@@ -31,11 +31,33 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_pr_comments` | read | Comments on a PR, filtered. |
 | `codeant_comments_search` | read | Free-text search across CodeAnt review comments. |
 | `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes. |
-| `codeant_scans_start` | **write** | Trigger a new scan. Gated. |
+| `codeant_secrets_local` | read | Scan local working-copy changes for secrets. Runs locally; values are masked. |
+| `codeant_analysis_settings_get` | read | Which static analyzers are enabled for a repo. |
+| `codeant_recurring_scans_list` | read | Recurring scan schedules. |
+| `codeant_branches_list` | read | A repo's branches and default branch. |
+| `codeant_cve_reporting_list` | read | Scheduled CVE report configurations. |
+| `codeant_login` | auth | Sign in through the browser and save the API token. |
+| `codeant_logout` | auth | Clear the saved API token. |
+| `codeant_scans_start` | **write** | Trigger a new scan; returns the resolved repo/branch/commit. Gated. |
 | `codeant_pr_resolve` | **write** | Resolve a PR conversation thread. Gated. |
 | `codeant_api_request` | **write** | Authenticated POST/PUT/PATCH/DELETE request to a relative CodeAnt app API path, with exact org/provider context. Gated. |
+| `codeant_analysis_settings_update` | **write** | Enable or disable static analyzers for a repo. Gated. |
+| `codeant_recurring_scans_create` | **write** | Create a recurring scan schedule. Gated. |
+| `codeant_recurring_scans_update` | **write** | Update or pause a recurring scan schedule. Gated. |
 
 Write tools are only registered when `CODEANT_READ_ONLY=0`. Default = read-only.
+
+### Scan Center coverage
+
+Every option in the interactive `codeant scan-center` maps to an MCP tool:
+
+| Scan Center | MCP |
+|---|---|
+| Select connection → repo → scan | `codeant_scans_orgs` → `codeant_scans_repos` → `codeant_scans_history` |
+| SAST, Anti-Patterns, Docstring, Complex Functions | `codeant_scans_results` with `types` `sast`, `anti_patterns`, `docstring`, `complex_functions` |
+| SCA, SBOM, Secrets, IaC, Dead Code | `codeant_scans_results` with `types` `sca`, `sbom`, `secrets`, `iac`, `dead_code` |
+| Dismissed Alerts / Dismissed Secrets | `codeant_scans_dismissed` with `analysisType` `security` / `secrets` |
+| `--filter-dismissed` / `--no-false-positives` | `filterDismissed` / `includeFalsePositives` |
 
 For complete finding coverage, examples, tenant/provider selection, and response details, see the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).
 
@@ -161,7 +183,7 @@ cd dist/mcpb-stage
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 1) | node server/index.js
 ```
 
-Expect 23 tools in the `tools/list` response (or 26 if `CODEANT_READ_ONLY=0`).
+Expect 28 tools in the `tools/list` response (or 34 if `CODEANT_READ_ONLY=0`). `tests/mcpServer.test.js` fails if the registered tools and the manifest's `tools` list drift apart.
 
 ### Bumping the version
 
@@ -192,7 +214,7 @@ Reviewer notes worth preparing:
 
 - **Auth model.** CodeAnt uses a user-scoped API token entered into `user_config.api_token`. The token never leaves the user's machine — the bundle talks to `api.codeant.ai` (or the user's self-hosted URL) directly. No third-party OAuth flow needed.
 - **Sandbox creds.** Email support@codeant.ai for a reviewer sandbox token; paste it into the submission form's reviewer-notes field along with an org slug that has scans + PRs to browse.
-- **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start` / `codeant_pr_resolve`.
+- **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start`, `codeant_pr_resolve`, `codeant_analysis_settings_update`, and the recurring-scan tools.
 
 ---
 

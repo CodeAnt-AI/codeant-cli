@@ -86,5 +86,12 @@ export async function runStartScan({ repo, branch, commit, include, exclude } = 
     throw err;
   }
 
-  console.log(result.message || 'Analysis started');
+  const { success, ...rest } = result;
+  return {
+    ...rest,
+    repo: resolvedRepo,
+    branch: resolvedBranch,
+    commit: commitId,
+    message: result.message || 'Analysis started',
+  };
 }
