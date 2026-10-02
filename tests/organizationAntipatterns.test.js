@@ -39,9 +39,11 @@ describe('organization anti-pattern findings', () => {
     await runOrganizationAntipatterns({ org: 'CodeAnt-AI', service: 'github' });
 
     expect(runRepos).toHaveBeenCalledWith({ org: 'CodeAnt-AI' });
-    expect(fetchAppApi).toHaveBeenCalledWith('/explorer/quality/antipatterns', 'POST', expect.objectContaining({
+    expect(fetchAppApi).toHaveBeenCalledWith('/explorer/quality/antipatterns/paginated', 'POST', expect.objectContaining({
       repos: ['CodeAnt-AI/a', 'CodeAnt-AI/b'],
       org: 'CodeAnt-AI',
+      limit: 500,
+      offset: 0,
     }), tenant);
   });
 

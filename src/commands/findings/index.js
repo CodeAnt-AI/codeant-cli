@@ -54,6 +54,17 @@ function hotlistOptions(options) {
   };
 }
 
+function addPageOptions(command) {
+  return command
+    .option('--limit <n>', 'Page size: 25, 100, or 500', Number, 500)
+    .option('--offset <n>', 'Start offset, a multiple of --limit', Number, 0)
+    .option('--all', 'Fetch every page from --offset on', false);
+}
+
+function pageOptions(options) {
+  return { limit: options.limit, offset: options.offset, all: options.all };
+}
+
 function addCloudScopeOptions(command) {
   return addTenantOptions(command)
     .requiredOption('--provider <provider>', 'Cloud provider: aws, azure, or gcp')
@@ -157,9 +168,9 @@ export default function registerFindingsCommands(program, { runCmd }) {
       maxWaitSeconds: options.maxWait,
     })));
 
-  addTenantOptions(findings.command('antipatterns').description('List anti-pattern findings across selected or all organization repositories'))
+  addPageOptions(addTenantOptions(findings.command('antipatterns').description('List anti-pattern findings across selected or all organization repositories')))
     .option('--repos <repos>', 'Comma-separated owner/repo values; defaults to every repository')
-    .action((options) => runCmd(() => runOrganizationAntipatterns({ ...tenantOptions(options), repos: options.repos })));
+    .action((options) => runCmd(() => runOrganizationAntipatterns({ ...tenantOptions(options), ...pageOptions(options), repos: options.repos })));
 
   const cloud = findings.command('cloud').description('Cloud security CSPM, VM, and container findings');
   addTenantOptions(cloud.command('history').description('List cloud scan history, or latest scans'))
@@ -168,14 +179,14 @@ export default function registerFindingsCommands(program, { runCmd }) {
     .option('--latest', 'Return only latest CSPM scans')
     .action((options) => runCmd(() => runCloudHistory({ ...tenantOptions(options), provider: options.provider, kind: options.kind, latest: options.latest })));
 
-  addCloudScopeOptions(cloud.command('list').description('List findings for a cloud scan'))
+  addPageOptions(addCloudScopeOptions(cloud.command('list').description('List findings for a cloud scan (VM/container results are paged)')))
     .option('--severity <value>', 'Severity filter')
     .option('--status <value>', 'Finding status filter')
     .option('--framework <value>', 'Compliance framework filter')
     .option('--subscription-id <id>', 'Azure subscription ID filter')
     .option('--exploit-attempted-only', 'AWS findings with validation attempts only')
     .option('--min-days-unused <n>', 'Minimum unused age in days', Number)
-    .action((options) => runCmd(() => runCloudFindings(cloudOptions(options))));
+    .action((options) => runCmd(() => runCloudFindings({ ...cloudOptions(options), ...pageOptions(options) })));
 
   addCloudScopeOptions(cloud.command('get').description('Get one cloud finding with full detail'))
     .requiredOption('--uid <uid>', 'Finding UID')
