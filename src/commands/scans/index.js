@@ -7,9 +7,10 @@ import { runDismissed, runOverrides } from './dismissed.js';
 import { runStartScan } from './start-scan.js';
 import { setQuiet, setNoColor } from './lib/log.js';
 import { setNoColor as tableSetNoColor } from './formatters/table.js';
+import { intOption } from '../../utils/intOption.js';
 
-// Commander passes the default as the parser's second argument; keep it out of the radix.
-const toInt = (value) => Number.parseInt(value, 10);
+const toCount = intOption({ min: 1 });
+const toOffset = intOption();
 
 /**
  * Register all `codeant scans <verb>` subcommands.
@@ -40,7 +41,7 @@ export default function registerScansCommands(program, { runCmd }) {
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--branch <name>', 'Filter by branch name')
     .option('--since <iso>', 'Show scans since ISO date')
-    .option('--limit <n>', 'Max results (default: 20)', toInt, 20)
+    .option('--limit <n>', 'Max results (default: 20)', toCount, 20)
     .action((opts) =>
       runCmd(() => runHistory({ repo: opts.repo, branch: opts.branch, since: opts.since, limit: opts.limit }))
     );
@@ -79,8 +80,8 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--format <fmt>', 'Output format: json|sarif|csv|md|table (default: json)', 'json')
     .option('--output <path>', 'Write output to file instead of stdout')
     .option('--fields <list>', 'Project findings to subset of fields (comma-separated)')
-    .option('--limit <n>', 'Max findings per page (default: 100)', toInt, 100)
-    .option('--offset <n>', 'Pagination offset (default: 0)', toInt, 0)
+    .option('--limit <n>', 'Max findings per page (default: 100)', toCount, 100)
+    .option('--offset <n>', 'Pagination offset (default: 0)', toOffset, 0)
     .option('--fail-fast', 'Exit 3 on first category fetch failure')
     .option('--no-color', 'Disable ANSI color (auto-disabled when not a TTY)')
     .option('--quiet', 'Suppress progress output on stderr')

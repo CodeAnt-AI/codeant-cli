@@ -20,6 +20,7 @@ import ScanCenter from './components/ScanCenter.js';
 import Welcome from './components/Welcome.js';
 import * as scm from './scm/index.js';
 import { setConfigValue } from './utils/config.js';
+import { intOption } from './utils/intOption.js';
 import { track, shutdown as analyticsShutdown, isTelemetryDisabled } from './utils/analytics.js';
 import registerScansCommands from './commands/scans/index.js';
 import registerSettingsCommands from './commands/settings/index.js';
@@ -31,9 +32,8 @@ import registerFindingsCommands from './commands/findings/index.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
-// Commander passes an option's default as the parser's second argument, so a
-// bare `parseInt` would use it as the radix (`--limit 30` with default 20 → 60).
-const toInt = (value) => Number.parseInt(value, 10);
+const toCount = intOption({ min: 1 });
+const toOffset = intOption();
 
 // Split comma-separated globs while preserving commas inside {} brace expansions (e.g. "*.{js,ts}")
 function splitGlobs(input) {
@@ -71,7 +71,7 @@ program
   .option('--uncommitted', 'Scan only uncommitted changes (staged + unstaged + untracked)')
   .option('--staged', 'Scan only staged files')
   .option('--last-commit', 'Scan last commit')
-  .option('--last-n-commits <n>', 'Scan last n commits (max 5)', toInt)
+  .option('--last-n-commits <n>', 'Scan last n commits (max 5)', toCount)
   .option('--base <branch>', 'Compare against a specific base branch (e.g. --base develop)')
   .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
@@ -122,7 +122,7 @@ program
   .option('--uncommitted', 'Review only uncommitted changes (staged + unstaged + untracked)')
   .option('--staged', 'Review only staged files')
   .option('--last-commit', 'Review last commit')
-  .option('--last-n-commits <n>', 'Review last n commits (max 5)', toInt)
+  .option('--last-n-commits <n>', 'Review last n commits (max 5)', toCount)
   .option('--base <branch>', 'Compare against a specific base branch (e.g. --base develop)')
   .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
   .option('--fail-on <level>', 'Fail on issues at or above this level: BLOCKER, CRITICAL, MAJOR, MINOR, INFO (default: CRITICAL)', 'CRITICAL')
@@ -303,8 +303,8 @@ program
     .option('--source-branch <branch>', 'Filter by source branch (partial match)')
     .option('--author <login>', 'Filter by author (fuzzy match)')
     .option('--state <state>', 'open or closed (default: open)', 'open')
-    .option('--limit <n>', 'Max results (default: 20, max: 100)', toInt, 20)
-    .option('--offset <n>', 'Pagination offset', toInt, 0)
+    .option('--limit <n>', 'Max results (default: 20, max: 100)', intOption({ min: 1, max: 100 }), 20)
+    .option('--offset <n>', 'Pagination offset', toOffset, 0)
     .action((options) => {
       const opts = resolveRepoOpts(options);
       runCmd(() => scm.listPullRequests({
@@ -319,7 +319,7 @@ program
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
     .option('--default-branch <branch>', 'Default branch name')
-    .requiredOption('--pr-number <n>', 'PR number', toInt)
+    .requiredOption('--pr-number <n>', 'PR number', toCount)
     .action((options) => {
       const opts = resolveRepoOpts(options);
       runCmd(() => scm.getPullRequest({
@@ -333,7 +333,7 @@ program
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
     .option('--default-branch <branch>', 'Default branch name')
-    .requiredOption('--pr-number <n>', 'PR number', toInt)
+    .requiredOption('--pr-number <n>', 'PR number', toCount)
     .option('--codeant-generated <bool>', 'Filter by CodeAnt authorship (true/false)', (v) => v === 'true')
     .option('--addressed', 'Filter by addressed/resolved status')
     .option('--created-after <date>', 'ISO 8601 date filter')
@@ -351,8 +351,8 @@ program
     .description('Resolve a conversation/comment thread on a PR')
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
-    .requiredOption('--pr-number <n>', 'PR number', toInt)
-    .option('--comment-id <id>', 'Comment ID (GitHub, Bitbucket)', toInt)
+    .requiredOption('--pr-number <n>', 'PR number', toCount)
+    .option('--comment-id <id>', 'Comment ID (GitHub, Bitbucket)', toCount)
     .option('--thread-id <id>', 'Thread/node ID (GitHub GraphQL, Azure)')
     .option('--discussion-id <id>', 'Discussion ID (GitLab)')
     .action((options) => {
@@ -374,10 +374,10 @@ program
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
     .option('--default-branch <branch>', 'Default branch name')
-    .option('--pr-number <n>', 'Filter by PR number', toInt)
+    .option('--pr-number <n>', 'Filter by PR number', toCount)
     .option('--status <status>', 'Filter by status (PENDING, COMPLETED, FAILED, etc.)')
-    .option('--limit <n>', 'Max results (default: 20)', toInt, 20)
-    .option('--offset <n>', 'Pagination offset', toInt, 0)
+    .option('--limit <n>', 'Max results (default: 20)', toCount, 20)
+    .option('--offset <n>', 'Pagination offset', toOffset, 0)
     .action((options) => {
       const opts = resolveRepoOpts(options);
       runCmd(() => scm.listCodeReviews({
@@ -391,7 +391,7 @@ program
     .description('Get detailed information for a specific code review')
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
-    .requiredOption('--pr-number <n>', 'PR number', toInt)
+    .requiredOption('--pr-number <n>', 'PR number', toCount)
     .requiredOption('--review-id <id>', 'Code review ID')
     .action((options) => {
       const opts = resolveRepoOpts(options);
@@ -409,7 +409,7 @@ program
     .option('--name <repo>', 'Repository (owner/repo)')
     .option('--remote <provider>', 'github, gitlab, bitbucket, azure')
     .requiredOption('--query <term>', 'Search term')
-    .option('--limit <n>', 'Max results (default: 10, max: 50)', toInt, 10)
+    .option('--limit <n>', 'Max results (default: 10, max: 50)', intOption({ min: 1, max: 50 }), 10)
     .option('--include-addressed', 'Include resolved comments (default: false)')
     .option('--created-after <date>', 'ISO 8601 date filter')
     .action((options) => {

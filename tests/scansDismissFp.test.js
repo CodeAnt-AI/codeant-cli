@@ -165,6 +165,7 @@ describe('dismissed and false-positive markers', () => {
       duplicate_locations: ['src/b.py:30-40'],
       is_dismissed: true,
       reason_for_dismiss: 'intentional',
+      comment_for_dismiss: 'kept for the v1 API',
       is_false_positive: true,
     }, 'duplicate_code');
 
@@ -173,7 +174,17 @@ describe('dismissed and false-positive markers', () => {
       duplicate_locations: ['src/b.py:30-40'],
       dismissed: true,
       reason_for_dismiss: 'intentional',
+      comment_for_dismiss: 'kept for the v1 API',
       false_positive: true,
     });
+  });
+
+  it('marks secrets with a FALSE_POSITIVE confidence as false positives', () => {
+    const finding = normalizeIssue(
+      { file_path: '.env', line_number: 1, type: 'AWS Key', confidence_score: 'false_positive' },
+      'secrets'
+    );
+
+    expect(finding.metadata.false_positive).toBe(true);
   });
 });

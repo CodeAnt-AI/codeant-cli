@@ -212,7 +212,7 @@ export async function startMcpServer() {
       description: 'List dismissed alerts (false positives, accepted risk, etc.) for a repository. Useful when triaging to avoid re-surfacing already-handled findings.',
       inputSchema: {
         repo: z.string().describe('Repository in owner/repo form.'),
-        analysisType: z.enum(['security', 'secrets', 'sca', 'iac', 'antipatterns', 'docstring', 'complex_functions', 'dead_code', 'duplicate_code']).optional().describe('Analysis type (default "security").'),
+        analysisType: z.enum(['security', 'sast', 'secrets', 'sca', 'iac', 'antipatterns', 'anti_patterns', 'docstring', 'complex_functions', 'dead_code', 'duplicate_code']).optional().describe('Analysis type (default "security"; sast and anti_patterns are aliases).'),
       },
       annotations: READ,
     },

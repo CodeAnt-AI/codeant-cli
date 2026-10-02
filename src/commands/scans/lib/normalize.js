@@ -96,8 +96,12 @@ export function normalizeIssue(issue, category) {
   if (issue.is_dismissed === true) {
     metadata.dismissed = true;
     if (issue.reason_for_dismiss) metadata.reason_for_dismiss = issue.reason_for_dismiss;
+    if (issue.comment_for_dismiss) metadata.comment_for_dismiss = issue.comment_for_dismiss;
   }
-  if (issue.is_false_positive === true) metadata.false_positive = true;
+  // Secrets from older backends only carry the FALSE_POSITIVE confidence.
+  if (issue.is_false_positive === true || String(issue.confidence_score || '').toUpperCase() === 'FALSE_POSITIVE') {
+    metadata.false_positive = true;
+  }
 
   const id = buildId(category, filePath, lineNumber, checkId, message);
 
