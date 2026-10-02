@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.8] - 02/10/2026
+## [0.5.9] - 02/10/2026
 - Added `duplicate_code` to `scans results` / `findings repo`
 - Dismissed and false-positive flags are kept on IaC and dead-code findings, and shown as `metadata.dismissed` / `metadata.false_positive`
 - Added `scans overrides` (and the `codeant_scans_overrides` MCP tool) for user false-positive, confidence, and severity overrides
