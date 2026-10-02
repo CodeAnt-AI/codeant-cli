@@ -1,6 +1,6 @@
 import { resolveCliTenant } from '../api/tenant.js';
 import { runRepos } from '../commands/scans/repos.js';
-import { fetchAppApi } from '../utils/fetchApi.js';
+import { fetchPaginated } from './paginate.js';
 
 function splitRepos(value) {
   const values = Array.isArray(value) ? value : value ? [value] : [];
@@ -19,11 +19,12 @@ export async function runOrganizationAntipatterns(options = {}) {
   }
   if (repos.length === 0) throw new Error('No repositories are available for this organization.');
 
-  const result = await fetchAppApi(
-    '/explorer/quality/antipatterns',
-    'POST',
+  const result = await fetchPaginated(
+    '/explorer/quality/antipatterns/paginated',
     { ...tenant.requestBody, org: tenant.organization, repos },
     tenant,
+    'antipatterns',
+    options,
   );
   return { tenant: tenant.requestBody, ...result };
 }
