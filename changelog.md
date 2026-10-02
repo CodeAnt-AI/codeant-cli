@@ -8,6 +8,7 @@
 - SCA severity is read from the advisory rating instead of defaulting to medium
 - Extra dead-code file paths no longer end in the result file name
 - Removed a debug dump of full scan responses to stderr
+- Fixed numeric options with defaults (`scans results --limit`, `scans history --limit`, PR comment `--limit`) being parsed in the wrong radix
 
 ## [0.5.7] - 28/09/2026
 - Login tokens are prefixed with `cli___` so CLI logins show up as CLI on the IDE users page
