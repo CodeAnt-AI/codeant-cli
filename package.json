@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Code review CLI tool",
   "type": "module",
   "repository": {
@@ -36,6 +36,7 @@
     "./scans/fetch-results": "./src/scans/fetchScanResults.js",
     "./scans/fetch-advanced-results": "./src/scans/fetchAdvancedScanResults.js",
     "./scans/dismissed-alerts": "./src/scans/fetchDismissedAlerts.js",
+    "./scans/issue-overrides": "./src/scans/fetchIssueOverrides.js",
     "./hotlist": "./src/hotlist/client.js",
     "./findings/cloud": "./src/findings/cloud.js",
     "./findings/pentest": "./src/findings/pentest.js",

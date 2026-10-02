@@ -3,7 +3,7 @@ import { runRepos } from './repos.js';
 import { runHistory } from './history.js';
 import { runGet } from './get.js';
 import { runResults } from './results.js';
-import { runDismissed } from './dismissed.js';
+import { runDismissed, runOverrides } from './dismissed.js';
 import { runStartScan } from './start-scan.js';
 import { setQuiet, setNoColor } from './lib/log.js';
 import { setNoColor as tableSetNoColor } from './formatters/table.js';
@@ -65,7 +65,7 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--branch <name>', 'Resolve latest scan on this branch')
     .option(
       '--types <list>',
-      'Comma-separated types: sast,sca,secrets,iac,dead_code,sbom,anti_patterns,docstring,complex_functions,all',
+      'Comma-separated types: sast,sca,secrets,iac,dead_code,duplicate_code,sbom,anti_patterns,docstring,complex_functions,all',
       'all'
     )
     .option('--severity <list>', 'Filter by severity (e.g. critical,high)')
@@ -117,9 +117,23 @@ export default function registerScansCommands(program, { runCmd }) {
     .command('dismissed')
     .description('List dismissed alerts for a repository')
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
-    .option('--analysis-type <type>', 'Analysis type: security|secrets (default: security)', 'security')
+    .option(
+      '--analysis-type <type>',
+      'Analysis type: security|secrets|sca|iac|antipatterns|docstring|complex_functions|dead_code|duplicate_code (default: security)',
+      'security'
+    )
     .action((opts) =>
       runCmd(() => runDismissed({ repo: opts.repo, analysisType: opts.analysisType }))
+    );
+
+  // ── overrides ──────────────────────────────────────────────────────────────
+  scans
+    .command('overrides')
+    .description('List user overrides (false positive, confidence, severity) for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--analysis-type <type>', 'Analysis type: security|secrets|iac|sca (default: security)', 'security')
+    .action((opts) =>
+      runCmd(() => runOverrides({ repo: opts.repo, analysisType: opts.analysisType }))
     );
 
   // ── start-scan ─────────────────────────────────────────────────────────────

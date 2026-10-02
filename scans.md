@@ -135,11 +135,12 @@ codeant scans results --repo <owner/repo> [options]
 | `--repo <repo>` | **(required)** Repository in `owner/repo` format |
 | `--scan <sha>` | Specific commit SHA to use |
 | `--branch <name>` | Resolve latest scan on this branch |
-| `--types <list>` | Comma-separated types: `sast`, `sca`, `secrets`, `iac`, `dead_code`, `sbom`, `anti_patterns`, `docstring`, `complex_functions`, `all` (default: `all`) |
+| `--types <list>` | Comma-separated types: `sast`, `sca`, `secrets`, `iac`, `dead_code`, `duplicate_code`, `sbom`, `anti_patterns`, `docstring`, `complex_functions`, `all` (default: `all`) |
 | `--severity <list>` | Filter by severity (e.g. `critical,high`) |
 | `--path <glob>` | Filter by file path glob |
 | `--check <regex>` | Filter by check ID or name (regex) |
-| `--include-dismissed` | Include dismissed findings (excluded by default) |
+| `--filter-dismissed` | Exclude dismissed findings (included by default, marked `metadata.dismissed`) |
+| `--no-false-positives` | Exclude false positives, including ones users marked in the app (included by default, marked `metadata.false_positive`) |
 | `--format <fmt>` | Output format: `json`, `sarif`, `csv`, `md`, `table` (default: `json`) |
 | `--output <path>` | Write output to file instead of stdout |
 | `--fields <list>` | Project findings to a subset of fields (comma-separated) |
@@ -173,8 +174,8 @@ codeant scans results --repo acme/backend --format md
 # Output as SARIF to a file
 codeant scans results --repo acme/backend --format sarif --output results.sarif
 
-# Include dismissed findings
-codeant scans results --repo acme/backend --include-dismissed
+# Only open findings: drop dismissed findings and false positives
+codeant scans results --repo acme/backend --filter-dismissed --no-false-positives
 
 # Paginate through results
 codeant scans results --repo acme/backend --limit 50 --offset 100
@@ -206,7 +207,7 @@ codeant scans dismissed --repo <owner/repo> [options]
 | Option | Description |
 |--------|-------------|
 | `--repo <repo>` | **(required)** Repository in `owner/repo` format |
-| `--analysis-type <type>` | Analysis type: `security` or `secrets` (default: `security`) |
+| `--analysis-type <type>` | `security`, `secrets`, `sca`, `iac`, `antipatterns`, `docstring`, `complex_functions`, `dead_code`, or `duplicate_code` (default: `security`). Result-type names `sast` and `anti_patterns` are accepted too. |
 
 **Examples:**
 
@@ -216,6 +217,16 @@ codeant scans dismissed --repo acme/backend
 
 # List dismissed secrets alerts
 codeant scans dismissed --repo acme/backend --analysis-type secrets
+```
+
+---
+
+### `scans overrides`
+
+List the per-finding overrides users set in the CodeAnt app: Mark/Unmark false positive (`security`, `iac`), secrets confidence (`secrets`), and Change Severity (`security`, `sca`). `scans results` already applies them.
+
+```bash
+codeant scans overrides --repo <owner/repo> [--analysis-type security|secrets|iac|sca]
 ```
 
 ---

@@ -16,6 +16,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_scans_get` | read | Severity/category summary for one scan. |
 | `codeant_scans_results` | read | Full findings (SAST, SCA, secrets, IaC, …) for one scan. |
 | `codeant_scans_dismissed` | read | Dismissed alerts for a repo. |
+| `codeant_scans_overrides` | read | User false-positive, confidence, and severity overrides for a repo. |
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
 | `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos. |

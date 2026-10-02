@@ -29,7 +29,21 @@ export async function fetchDismissedAlerts(repo, analysisType = 'security') {
     const dismissedAlerts = [];
 
     for (const [issueKey, dismissInfo] of Object.entries(dismissData)) {
-      if (!issueKey.includes('||::||')) continue;
+      if (!issueKey.includes('||::||')) {
+        // SCA ("pkg@version[::manifest::cve]") and duplicate-code (group index)
+        // keys have no file/line parts; keep them so the count is complete.
+        dismissedAlerts.push({
+          file_path: '',
+          context_code_block: '',
+          test_id: '',
+          line_number: 0,
+          type: '',
+          issue_key: issueKey,
+          reason_for_dismiss: dismissInfo?.reason_for_dismiss || '',
+          comment_for_dismiss: dismissInfo?.comment_for_dismiss || '',
+        });
+        continue;
+      }
 
       const parts = issueKey.split('||::||');
       let file_path = parts[0] || '';

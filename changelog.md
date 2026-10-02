@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.8] - 02/10/2026
+- Added `duplicate_code` to `scans results` / `findings repo`
+- Dismissed and false-positive flags are kept on IaC and dead-code findings, and shown as `metadata.dismissed` / `metadata.false_positive`
+- Added `scans overrides` (and the `codeant_scans_overrides` MCP tool) for user false-positive, confidence, and severity overrides
+- `scans dismissed` accepts every analysis type and no longer drops SCA dismissals
+- SCA severity is read from the advisory rating instead of defaulting to medium
+- Extra dead-code file paths no longer end in the result file name
+- Removed a debug dump of full scan responses to stderr
+
 ## [0.5.7] - 28/09/2026
 - Login tokens are prefixed with `cli___` so CLI logins show up as CLI on the IDE users page
 
