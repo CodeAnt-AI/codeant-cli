@@ -10,6 +10,9 @@
 - Removed a debug dump of full scan responses to stderr
 - Fixed numeric options with defaults (`scans results --limit`, `scans history --limit`, PR comment `--limit`) being parsed in the wrong radix
 
+## [0.5.8] - 02/10/2026
+- `findings antipatterns` and VM/container `findings cloud list` are paged (`--limit`, `--offset`, `--all`), so large organizations and scans no longer fail with a 502
+
 ## [0.5.7] - 28/09/2026
 - Login tokens are prefixed with `cli___` so CLI logins show up as CLI on the IDE users page
 

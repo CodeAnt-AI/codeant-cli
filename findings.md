@@ -75,9 +75,12 @@ codeant findings antipatterns --org CodeAnt-AI --service github
 codeant findings antipatterns \
   --org CodeAnt-AI --service github \
   --repos CodeAnt-AI/api,CodeAnt-AI/web
+
+# Every page, merged into one list
+codeant findings antipatterns --org CodeAnt-AI --service github --all
 ```
 
-When `--repos` is omitted, the CLI first lists the organization's repositories and sends all of them to the same aggregate anti-pattern endpoint used by the Quality Report UI.
+When `--repos` is omitted, the CLI first lists the organization's repositories and sends all of them to the aggregate anti-pattern endpoint. Results are paged because an organization-wide list can exceed the API's 1 MB response limit: `--limit` is 25, 100, or 500 (default 500), `--offset` is a multiple of `--limit` (default 0), and `--all` fetches every page from `--offset` on. Responses carry `total`, `limit`, and `offset`; `summary` and `total_issues` always cover every issue.
 
 ## Cloud security findings
 
@@ -98,8 +101,9 @@ codeant findings cloud history --provider all --kind container
 codeant findings cloud list --provider aws --scan-id <scan-id> --account-id <account-id>
 codeant findings cloud get --provider aws --scan-id <scan-id> --uid <finding-uid> --cloud-service iam
 
-# VM and container vulnerabilities use the same list/detail flow
+# VM and container vulnerabilities use the same list/detail flow (paged; --all merges every page)
 codeant findings cloud list --provider aws --kind vm --scan-id <scan-id>
+codeant findings cloud list --provider aws --kind container --scan-id <scan-id> --all
 codeant findings cloud get --provider gcp --kind container --scan-id <scan-id> --uid <finding-uid>
 
 # Azure requires the tenant ID
@@ -113,7 +117,7 @@ codeant findings cloud list \
   --framework cis
 ```
 
-`--kind` defaults to `cspm`; use `vm` or `container` for the other Cloud Security result views. CSPM `cloud list` supports `--cloud-service`, `--severity`, `--status`, `--framework`, and `--min-days-unused`. AWS additionally supports `--exploit-attempted-only`; Azure additionally supports `--subscription-id`. CSPM responses include `findings` and `dismissed_findings`; VM/container responses preserve their UI result payload unchanged.
+`--kind` defaults to `cspm`; use `vm` or `container` for the other Cloud Security result views. CSPM `cloud list` supports `--cloud-service`, `--severity`, `--status`, `--framework`, and `--min-days-unused`. AWS additionally supports `--exploit-attempted-only`; Azure additionally supports `--subscription-id`. CSPM responses include `findings` and `dismissed_findings`. VM/container responses keep the UI result payload, but `findings` is paged with the same `--limit`/`--offset`/`--all` options as anti-patterns and the response carries `total`; `findings_total` and `severity_rollup` still describe the whole scan.
 
 ## Pentest findings
 

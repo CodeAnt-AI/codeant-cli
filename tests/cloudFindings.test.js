@@ -72,6 +72,7 @@ describe('cloud findings client', () => {
       subscription_id: 'sub-1',
       min_days_unused: 30,
     }), tenant);
+    expect(fetchAppApi.mock.calls[0][2]).not.toHaveProperty('limit');
   });
 
   it('requires provider-specific scope and fetches detail by UID', async () => {
@@ -86,10 +87,12 @@ describe('cloud findings client', () => {
     }), tenant);
   });
 
-  it('uses the VM and container result endpoints without CSPM account fields', async () => {
+  it('uses the paged VM and container result endpoints without CSPM account fields', async () => {
     await runCloudFindings({ provider: 'gcp', kind: 'vm', scanId: 'vm-scan' });
-    expect(fetchAppApi).toHaveBeenNthCalledWith(1, '/cloud/gcp/vm-scanning/results', 'POST', expect.objectContaining({
+    expect(fetchAppApi).toHaveBeenNthCalledWith(1, '/cloud/gcp/vm-scanning/results/paginated', 'POST', expect.objectContaining({
       scan_id: 'vm-scan',
+      limit: 500,
+      offset: 0,
     }), tenant);
     expect(fetchAppApi.mock.calls[0][2]).not.toHaveProperty('project_id');
 
@@ -98,5 +101,20 @@ describe('cloud findings client', () => {
       scan_id: 'container-scan',
       uid: 'CVE-1',
     }), tenant);
+  });
+
+  it('merges every container page with --all', async () => {
+    fetchAppApi.mockImplementation(async (_path, _method, body) => ({
+      status: 'completed',
+      total: 1100,
+      offset: body.offset,
+      findings: Array.from({ length: Math.min(500, 1100 - body.offset) }, (_, index) => ({ uid: `f${body.offset + index}` })),
+    }));
+
+    const result = await runCloudFindings({ provider: 'aws', kind: 'container', scanId: 'big', all: true });
+
+    expect(fetchAppApi.mock.calls.map((call) => call[2].offset)).toEqual([0, 500, 1000]);
+    expect(result.findings.map((finding) => finding.uid)).toEqual(Array.from({ length: 1100 }, (_, index) => `f${index}`));
+    expect(result).toMatchObject({ provider: 'aws', kind: 'container', total: 1100, status: 'completed' });
   });
 });

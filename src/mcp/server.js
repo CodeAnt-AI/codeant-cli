@@ -289,12 +289,15 @@ export async function startMcpServer() {
     'codeant_findings_antipatterns',
     {
       title: 'List organization anti-pattern findings',
-      description: 'Fetch anti-pattern findings across selected repositories, or every repository in the organization when repos is omitted.',
+      description: 'Fetch anti-pattern findings across selected repositories, or every repository in the organization when repos is omitted. Results are paged; the response carries total.',
       inputSchema: {
         org: z.string().optional(),
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
         providerBaseUrl: z.string().url().optional(),
         repos: z.array(z.string()).optional().describe('Repositories in owner/repo form. Omit to query every repository.'),
+        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 500).'),
+        offset: z.number().int().nonnegative().optional().describe('Start offset, a multiple of limit (default 0).'),
+        all: z.boolean().optional().describe('Fetch every page from offset on instead of one page.'),
       },
       annotations: READ,
     },
@@ -327,7 +330,7 @@ export async function startMcpServer() {
     'codeant_cloud_findings_list',
     {
       title: 'List cloud security findings',
-      description: 'Fetch findings for one AWS, Azure, or GCP CSPM, VM, or container scan using the same endpoint as the app.',
+      description: 'Fetch findings for one AWS, Azure, or GCP CSPM, VM, or container scan. VM and container results are paged (limit/offset/all) and carry total.',
       inputSchema: {
         org: z.string().optional(),
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
@@ -345,6 +348,9 @@ export async function startMcpServer() {
         subscriptionId: z.string().optional(),
         exploitAttemptedOnly: z.boolean().optional(),
         minDaysUnused: z.number().int().nonnegative().optional(),
+        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 500).'),
+        offset: z.number().int().nonnegative().optional().describe('Start offset, a multiple of limit (default 0).'),
+        all: z.boolean().optional().describe('Fetch every page from offset on instead of one page.'),
       },
       annotations: READ,
     },

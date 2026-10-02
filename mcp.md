@@ -19,9 +19,9 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_scans_overrides` | read | User false-positive, confidence, and severity overrides for a repo. |
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
-| `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos. |
+| `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos (paged: `limit`, `offset`, `all`). |
 | `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history. |
-| `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan. |
+| `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan (VM/container paged: `limit`, `offset`, `all`). |
 | `codeant_cloud_finding_get` | read | Full detail for one cloud finding UID. |
 | `codeant_pentest_history` | read | Pentest engagement history. |
 | `codeant_pentest_issues` | read | All available issues for a pentest engagement. |

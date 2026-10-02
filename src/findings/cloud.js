@@ -1,5 +1,6 @@
 import { resolveCliTenant } from '../api/tenant.js';
 import { fetchAppApi } from '../utils/fetchApi.js';
+import { fetchPaginated } from './paginate.js';
 
 const PROVIDERS = new Set(['aws', 'azure', 'gcp']);
 const KINDS = new Set(['cspm', 'vm', 'container']);
@@ -53,18 +54,13 @@ function optionalFilters(provider, options = {}) {
   return filters;
 }
 
-async function request(provider, kind, action, options = {}, extra = {}, resolvedTenant = null) {
+async function request(provider, kind, action, options = {}, extra = {}, resolvedTenant = null, pageKey = null) {
   const tenant = resolvedTenant || await resolveCliTenant(options);
-  const data = await fetchAppApi(
-    endpoint(provider, kind, action),
-    'POST',
-    {
-      ...tenant.requestBody,
-      username: tenant.organization,
-      ...extra,
-    },
-    tenant,
-  );
+  const path = endpoint(provider, kind, action);
+  const body = { ...tenant.requestBody, username: tenant.organization, ...extra };
+  const data = pageKey
+    ? await fetchPaginated(path, body, tenant, pageKey, options)
+    : await fetchAppApi(path, 'POST', body, tenant);
   return { tenant: tenant.requestBody, provider, kind, ...data };
 }
 
@@ -96,10 +92,14 @@ export async function runCloudFindings(options = {}) {
   const provider = normalizeProvider(options.provider);
   const kind = normalizeKind(options.kind);
   const scanId = requireValue(options.scanId, '--scan-id');
-  return request(provider, kind, kind === 'cspm' ? 'findings' : 'results', options, {
+  // VM/container scans can exceed the API's 1 MB response cap, so they are paged.
+  if (kind !== 'cspm') {
+    return request(provider, kind, 'results/paginated', options, { scan_id: scanId }, null, 'findings');
+  }
+  return request(provider, kind, 'findings', options, {
     scan_id: scanId,
-    ...(kind === 'cspm' ? providerScope(provider, options) : {}),
-    ...(kind === 'cspm' ? optionalFilters(provider, options) : {}),
+    ...providerScope(provider, options),
+    ...optionalFilters(provider, options),
   });
 }
 
