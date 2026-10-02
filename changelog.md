@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.9] - 02/10/2026
+- Added `duplicate_code` to `scans results` / `findings repo`
+- Dismissed and false-positive flags are kept on IaC and dead-code findings, and shown as `metadata.dismissed` / `metadata.false_positive`
+- Added `scans overrides` (and the `codeant_scans_overrides` MCP tool) for user false-positive, confidence, and severity overrides
+- `scans dismissed` accepts every analysis type and no longer drops SCA dismissals
+- SCA severity is read from the advisory rating instead of defaulting to medium
+- Extra dead-code file paths no longer end in the result file name
+- Removed a debug dump of full scan responses to stderr
+- Fixed numeric options with defaults (`scans results --limit`, `scans history --limit`, PR comment `--limit`) being parsed in the wrong radix; numeric options now reject non-integers, negative values, zero counts, and values above the documented maximum
+- The dismissal comment (`metadata.comment_for_dismiss`) and secrets with a `FALSE_POSITIVE` confidence are reported in `metadata`
+
 ## [0.5.8] - 02/10/2026
 - `findings antipatterns` and VM/container `findings cloud list` are paged (`--limit`, `--offset`, `--all`), so large organizations and scans no longer fail with a 502
 

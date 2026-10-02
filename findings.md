@@ -49,9 +49,9 @@ codeant findings repo \
   --output codeant.sarif
 ```
 
-Supported repo types are `sast`, `sca`, `secrets`, `iac`, `dead_code`, `sbom`, `anti_patterns`, `docstring`, and `complex_functions`. Use `--types all` for all of them. Formats are `json`, `sarif`, `csv`, `md`, and `table`; JSON is the default.
+Supported repo types are `sast`, `sca`, `secrets`, `iac`, `dead_code`, `duplicate_code`, `sbom`, `anti_patterns`, `docstring`, and `complex_functions`. Use `--types all` for all of them. Formats are `json`, `sarif`, `csv`, `md`, and `table`; JSON is the default.
 
-Use `--filter-dismissed` to exclude dismissed findings and `--no-false-positives` to exclude false positives. `--path`, `--check`, `--limit`, and `--offset` support agent-friendly filtering and pagination.
+Use `--filter-dismissed` to exclude dismissed findings and `--no-false-positives` to exclude false positives, including ones users marked in the app. Without those flags, such findings are returned with `metadata.dismissed` or `metadata.false_positive`. `--path`, `--check`, `--limit`, and `--offset` support agent-friendly filtering and pagination.
 
 ## Organization Hotlist findings
 

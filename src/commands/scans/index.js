@@ -3,10 +3,14 @@ import { runRepos } from './repos.js';
 import { runHistory } from './history.js';
 import { runGet } from './get.js';
 import { runResults } from './results.js';
-import { runDismissed } from './dismissed.js';
+import { runDismissed, runOverrides } from './dismissed.js';
 import { runStartScan } from './start-scan.js';
 import { setQuiet, setNoColor } from './lib/log.js';
 import { setNoColor as tableSetNoColor } from './formatters/table.js';
+import { intOption } from '../../utils/intOption.js';
+
+const toCount = intOption({ min: 1 });
+const toOffset = intOption();
 
 /**
  * Register all `codeant scans <verb>` subcommands.
@@ -37,7 +41,7 @@ export default function registerScansCommands(program, { runCmd }) {
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--branch <name>', 'Filter by branch name')
     .option('--since <iso>', 'Show scans since ISO date')
-    .option('--limit <n>', 'Max results (default: 20)', parseInt, 20)
+    .option('--limit <n>', 'Max results (default: 20)', toCount, 20)
     .action((opts) =>
       runCmd(() => runHistory({ repo: opts.repo, branch: opts.branch, since: opts.since, limit: opts.limit }))
     );
@@ -65,7 +69,7 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--branch <name>', 'Resolve latest scan on this branch')
     .option(
       '--types <list>',
-      'Comma-separated types: sast,sca,secrets,iac,dead_code,sbom,anti_patterns,docstring,complex_functions,all',
+      'Comma-separated types: sast,sca,secrets,iac,dead_code,duplicate_code,sbom,anti_patterns,docstring,complex_functions,all',
       'all'
     )
     .option('--severity <list>', 'Filter by severity (e.g. critical,high)')
@@ -76,8 +80,8 @@ export default function registerScansCommands(program, { runCmd }) {
     .option('--format <fmt>', 'Output format: json|sarif|csv|md|table (default: json)', 'json')
     .option('--output <path>', 'Write output to file instead of stdout')
     .option('--fields <list>', 'Project findings to subset of fields (comma-separated)')
-    .option('--limit <n>', 'Max findings per page (default: 100)', parseInt, 100)
-    .option('--offset <n>', 'Pagination offset (default: 0)', parseInt, 0)
+    .option('--limit <n>', 'Max findings per page (default: 100)', toCount, 100)
+    .option('--offset <n>', 'Pagination offset (default: 0)', toOffset, 0)
     .option('--fail-fast', 'Exit 3 on first category fetch failure')
     .option('--no-color', 'Disable ANSI color (auto-disabled when not a TTY)')
     .option('--quiet', 'Suppress progress output on stderr')
@@ -117,9 +121,23 @@ export default function registerScansCommands(program, { runCmd }) {
     .command('dismissed')
     .description('List dismissed alerts for a repository')
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
-    .option('--analysis-type <type>', 'Analysis type: security|secrets (default: security)', 'security')
+    .option(
+      '--analysis-type <type>',
+      'Analysis type: security|secrets|sca|iac|antipatterns|docstring|complex_functions|dead_code|duplicate_code (default: security)',
+      'security'
+    )
     .action((opts) =>
       runCmd(() => runDismissed({ repo: opts.repo, analysisType: opts.analysisType }))
+    );
+
+  // ── overrides ──────────────────────────────────────────────────────────────
+  scans
+    .command('overrides')
+    .description('List user overrides (false positive, confidence, severity) for a repository')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--analysis-type <type>', 'Analysis type: security|secrets|iac|sca (default: security)', 'security')
+    .action((opts) =>
+      runCmd(() => runOverrides({ repo: opts.repo, analysisType: opts.analysisType }))
     );
 
   // ── start-scan ─────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import { runRepos } from '../commands/scans/repos.js';
 import { runHistory } from '../commands/scans/history.js';
 import { runGet } from '../commands/scans/get.js';
 import { runResults } from '../commands/scans/results.js';
-import { runDismissed } from '../commands/scans/dismissed.js';
+import { runDismissed, runOverrides } from '../commands/scans/dismissed.js';
 import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
@@ -164,12 +164,12 @@ export async function startMcpServer() {
         repo: z.string().describe('Repository in owner/repo form.'),
         scan: z.string().optional().describe('Specific commit SHA.'),
         branch: z.string().optional().describe('Resolve the latest scan on this branch.'),
-        types: z.string().optional().describe('Comma-separated types: sast,sca,secrets,iac,dead_code,sbom,anti_patterns,docstring,complex_functions,all (default "all").'),
+        types: z.string().optional().describe('Comma-separated types: sast,sca,secrets,iac,dead_code,duplicate_code,sbom,anti_patterns,docstring,complex_functions,all (default "all").'),
         severity: z.string().optional().describe('Comma-separated severities (e.g. "critical,high").'),
         path: z.string().optional().describe('File path glob filter.'),
         check: z.string().optional().describe('Filter by check ID or name (regex).'),
-        filterDismissed: z.boolean().optional().describe('Exclude dismissed findings (default false).'),
-        includeFalsePositives: z.boolean().optional().describe('Include false positives (default true).'),
+        filterDismissed: z.boolean().optional().describe('Exclude dismissed findings (default false). When false, dismissed findings carry metadata.dismissed.'),
+        includeFalsePositives: z.boolean().optional().describe('Include false positives, including user-marked ones (default true). When true, they carry metadata.false_positive.'),
         fields: z.string().optional().describe('Project findings to a subset of fields (comma-separated).'),
         limit: z.number().int().positive().max(500).optional().describe('Max findings per page (default 100).'),
         offset: z.number().int().nonnegative().optional().describe('Pagination offset (default 0).'),
@@ -212,12 +212,28 @@ export async function startMcpServer() {
       description: 'List dismissed alerts (false positives, accepted risk, etc.) for a repository. Useful when triaging to avoid re-surfacing already-handled findings.',
       inputSchema: {
         repo: z.string().describe('Repository in owner/repo form.'),
-        analysisType: z.enum(['security', 'secrets']).optional().describe('Analysis type (default "security").'),
+        analysisType: z.enum(['security', 'sast', 'secrets', 'sca', 'iac', 'antipatterns', 'anti_patterns', 'docstring', 'complex_functions', 'dead_code', 'duplicate_code']).optional().describe('Analysis type (default "security"; sast and anti_patterns are aliases).'),
       },
       annotations: READ,
     },
     async ({ repo, analysisType }) => {
       try { return ok(await runDismissed({ repo, analysisType: analysisType ?? 'security' })); } catch (err) { return fail(err); }
+    }
+  );
+
+  server.registerTool(
+    'codeant_scans_overrides',
+    {
+      title: 'List user issue overrides',
+      description: 'List per-finding overrides users set in the CodeAnt app for a repository: Mark/Unmark false positive (security, iac), secrets confidence, and Change Severity (security, sca). Results from codeant_scans_results already apply them; use this to explain why a finding is hidden or re-rated.',
+      inputSchema: {
+        repo: z.string().describe('Repository in owner/repo form.'),
+        analysisType: z.enum(['security', 'secrets', 'iac', 'sca']).optional().describe('Analysis type (default "security").'),
+      },
+      annotations: READ,
+    },
+    async ({ repo, analysisType }) => {
+      try { return ok(await runOverrides({ repo, analysisType: analysisType ?? 'security' })); } catch (err) { return fail(err); }
     }
   );
 

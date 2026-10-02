@@ -10,6 +10,7 @@ import {
   fetchSecretsResults,
   fetchIacResults,
   fetchDeadCodeResults,
+  fetchDuplicateCodeResults,
 } from '../../../scans/fetchAdvancedScanResults.js';
 
 /**
@@ -26,6 +27,7 @@ export const CATEGORIES = {
   secrets:           { fetcher: fetchSecretsResults,          kind: 'secret' },
   iac:               { fetcher: fetchIacResults,              kind: 'config' },
   dead_code:         { fetcher: fetchDeadCodeResults,         kind: 'code' },
+  duplicate_code:    { fetcher: fetchDuplicateCodeResults,    kind: 'code' },
 };
 
 /**

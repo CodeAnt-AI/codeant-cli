@@ -6,7 +6,22 @@ export const ADVANCED_RESULT_TYPES = {
   SECRETS: 'secrets',
   IAC: 'iac',
   DEAD_CODE: 'dead_code',
+  DUPLICATE_CODE: 'duplicate_code',
 };
+
+const BACKEND_MARKERS = ['is_dismissed', 'reason_for_dismiss', 'comment_for_dismiss', 'is_false_positive'];
+
+/**
+ * Dismissed / false-positive markers the backend stamps on each finding. Kept
+ * when a finding is rebuilt so callers can hide or show those findings.
+ */
+function backendMarkers(item) {
+  const markers = {};
+  for (const key of BACKEND_MARKERS) {
+    if (item?.[key] !== undefined) markers[key] = item[key];
+  }
+  return markers;
+}
 
 const EXTRA_DEAD_CODE_MESSAGES = {
   S1481: 'Unused local variable',
@@ -74,12 +89,16 @@ function flattenDeadCode(deadCodeData) {
         name,
         confidence: confMatch ? confMatch[1] : '90',
         check_name: `Unused ${issueType}: ${name}`,
+        ...backendMarkers(issue),
       });
     });
   });
 
-  // JS dead code — unused files
+  // JS dead code — unused files (plain path strings; the backend lists dismissed ones separately)
   const jsDeadCode = deadCodeData.js_dead_code || {};
+  const dismissedFiles = Array.isArray(jsDeadCode.dismissed_unused_files)
+    ? new Set(jsDeadCode.dismissed_unused_files)
+    : null;
   (jsDeadCode.unused_files || []).forEach((filePath) => {
     if (!filePath) return;
     flat.push({
@@ -90,6 +109,7 @@ function flattenDeadCode(deadCodeData) {
       severity: 'warning',
       type: 'unused_file',
       check_name: 'Unused file',
+      ...(dismissedFiles ? { is_dismissed: dismissedFiles.has(filePath) } : {}),
     });
   });
 
@@ -110,6 +130,7 @@ function flattenDeadCode(deadCodeData) {
         type: 'unused_export',
         name: exp.name,
         check_name: `Unused export: ${exp.name || 'unknown'}`,
+        ...backendMarkers(exp),
       });
     });
   });
@@ -124,7 +145,8 @@ function flattenDeadCode(deadCodeData) {
         const messageId = issue['message-id'] || '';
         const msgKey = messageId.includes(':') ? messageId.split(':')[1] : messageId;
         flat.push({
-          file_path: extractRelativeFilePath(filePath),
+          // Keys end with the per-file result name (".../app.py/dead_code.json").
+          file_path: extractRelativeFilePath(filePath).replace(/\/[^/]+\.json$/, ''),
           line_number: issue.line_number || 0,
           issue_text: issue.issue_text || EXTRA_DEAD_CODE_MESSAGES[msgKey] || 'Dead code detected',
           message: issue.issue_text || EXTRA_DEAD_CODE_MESSAGES[msgKey] || 'Dead code detected',
@@ -133,11 +155,55 @@ function flattenDeadCode(deadCodeData) {
           rule_id: msgKey,
           confidence: issue.confidence || '90',
           check_name: EXTRA_DEAD_CODE_MESSAGES[msgKey] || 'Dead code detected',
+          ...backendMarkers(issue),
         });
       });
     });
   }
 
+  return flat;
+}
+
+/** "[12-40]" → [12, 40]; anything unparsable → []. */
+function parseWindow(window) {
+  const numbers = String(window ?? '').match(/\d+/g) || [];
+  return numbers.slice(0, 2).map(Number);
+}
+
+/**
+ * Flatten duplicate-code clone groups (each a list of { fileName, window }
+ * members) into one finding per member, linked by their group index.
+ */
+function flattenDuplicateCode(groups) {
+  if (!Array.isArray(groups)) return [];
+  const flat = [];
+  groups.forEach((group, groupIndex) => {
+    const members = Array.isArray(group) ? group.filter((m) => m && typeof m === 'object') : [];
+    const locations = members.map((m) => {
+      const [start, end] = parseWindow(m.window);
+      return { file_path: extractRelativeFilePath(cleanLeadingSlash(m.fileName)), start, end };
+    });
+    members.forEach((member, i) => {
+      const { file_path, start, end } = locations[i];
+      const others = locations
+        .filter((_, j) => j !== i)
+        .map((o) => (o.start ? `${o.file_path}:${o.start}${o.end ? `-${o.end}` : ''}` : o.file_path));
+      const message = `Duplicated block (${members.length} locations)`;
+      flat.push({
+        file_path,
+        line_number: start || 1,
+        file_line_range: end ? [start, end] : [start || 1],
+        check_id: 'duplicate-code',
+        check_name: message,
+        issue_text: message,
+        message,
+        severity: 'low',
+        duplicate_group: member.originalIndex ?? groupIndex,
+        duplicate_locations: others,
+        ...backendMarkers(member),
+      });
+    });
+  });
   return flat;
 }
 
@@ -163,7 +229,8 @@ function normalizeAdvancedIssue(item, resultType) {
         item.vulnerability_id || item.cve_id || item.advisory_id ||
         (item.package_name ? `Vulnerability in ${item.package_name}` : null) ||
         item.title || item.description || 'Package vulnerability detected';
-      normalized.severity = item.severity || 'medium';
+      // SCA findings carry severity in ratings (where Change Severity overrides land).
+      normalized.severity = item.severity || item.ratings?.[0]?.severity || 'medium';
       break;
     case ADVANCED_RESULT_TYPES.SBOM:
       normalized.check_name = item.package_name
@@ -187,6 +254,10 @@ function normalizeAdvancedIssue(item, resultType) {
         item.check_name || item.name || item.function_name || item.symbol_name || item.description || 'Unused code detected';
       normalized.severity = item.severity || 'low';
       break;
+    case ADVANCED_RESULT_TYPES.DUPLICATE_CODE:
+      normalized.check_name = item.check_name || 'Duplicated block';
+      normalized.severity = item.severity || 'low';
+      break;
     default:
       normalized.check_name = item.description || item.message || item.name || 'Issue detected';
   }
@@ -195,7 +266,7 @@ function normalizeAdvancedIssue(item, resultType) {
 }
 
 /**
- * Fetch advanced scan results (SCA, SBOM, secrets, IaC, dead code).
+ * Fetch advanced scan results (SCA, SBOM, secrets, IaC, dead code, duplicate code).
  *
  * @param {string} repo       - "org/repo-name"
  * @param {string} commitId   - 40-char commit SHA
@@ -237,6 +308,8 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
       resultsData = response.secrets;
     } else if (resultType === ADVANCED_RESULT_TYPES.DEAD_CODE) {
       resultsData = flattenDeadCode(response.dead_code);
+    } else if (resultType === ADVANCED_RESULT_TYPES.DUPLICATE_CODE) {
+      resultsData = flattenDuplicateCode(response.results);
     } else if (resultType === ADVANCED_RESULT_TYPES.SCA) {
       const scaResults = response.results;
       if (scaResults && typeof scaResults === 'object' && !Array.isArray(scaResults) && scaResults.all_vulnerabilities !== undefined) {
@@ -268,6 +341,7 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
                 guideline: check.guideline || '',
                 code_block: check.code_block || [],
                 resource: check.resource || '',
+                ...backendMarkers(check),
               });
             });
           });
@@ -328,3 +402,6 @@ export const fetchIacResults = (repo, commitId, opts) =>
 
 export const fetchDeadCodeResults = (repo, commitId, opts) =>
   fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DEAD_CODE, opts);
+
+export const fetchDuplicateCodeResults = (repo, commitId, opts) =>
+  fetchAdvancedScanResults(repo, commitId, ADVANCED_RESULT_TYPES.DUPLICATE_CODE, opts);

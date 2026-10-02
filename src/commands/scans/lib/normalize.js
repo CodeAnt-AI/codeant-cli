@@ -87,6 +87,20 @@ export function normalizeIssue(issue, category) {
   } else if (category === 'sca') {
     if (issue.cvss_score !== undefined) metadata.cvss_score = issue.cvss_score;
     if (issue.fix_version) metadata.fix_version = issue.fix_version;
+  } else if (category === 'duplicate_code') {
+    if (issue.duplicate_group !== undefined) metadata.duplicate_group = issue.duplicate_group;
+    if (issue.duplicate_locations) metadata.duplicate_locations = issue.duplicate_locations;
+  }
+
+  // Backend dispositions, present when dismissed / false positives are not filtered out.
+  if (issue.is_dismissed === true) {
+    metadata.dismissed = true;
+    if (issue.reason_for_dismiss) metadata.reason_for_dismiss = issue.reason_for_dismiss;
+    if (issue.comment_for_dismiss) metadata.comment_for_dismiss = issue.comment_for_dismiss;
+  }
+  // Secrets from older backends only carry the FALSE_POSITIVE confidence.
+  if (issue.is_false_positive === true || String(issue.confidence_score || '').toUpperCase() === 'FALSE_POSITIVE') {
+    metadata.false_positive = true;
   }
 
   const id = buildId(category, filePath, lineNumber, checkId, message);
