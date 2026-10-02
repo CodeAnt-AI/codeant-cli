@@ -1,17 +1,13 @@
 import { getConfigValue } from './config.js';
 
-//
-const NEW_BASE_URL = 'https://service.codeant.ai';
+const DEFAULT_BASE_URL = 'https://api.codeant.ai';
 const DEFAULT_BASE_URLS = new Set([
-  'https://service.codeant.ai',
-  'https://api.codeant.ai',
+  DEFAULT_BASE_URL,
   'https://dev-api.codeant.ai',
 ]);
 
 const getBaseUrl = () => {
-  const url = process.env.CODEANT_API_URL || getConfigValue('baseUrl') || NEW_BASE_URL;
-  if (url === 'https://api.codeant.ai') return NEW_BASE_URL;
-  return url;
+  return process.env.CODEANT_API_URL || getConfigValue('baseUrl') || DEFAULT_BASE_URL;
 };
 
 const isDefaultBaseUrl = () => {
