@@ -56,13 +56,16 @@ export async function awaitLoginCompletion({
     try {
       const response = await fetch(pollUrl);
       const data = await response.json();
-      if (data.status === 'yes') {
+      // Do not save the token if the login was aborted while this poll was in flight.
+      if (data.status === 'yes' && !signal?.aborted) {
         setConfigValue('apiKeyV2', token);
         return { ok: true, token };
       }
     } catch {
       // Network blip — keep polling.
     }
+
+    if (signal?.aborted) throw new Error('Login aborted');
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;

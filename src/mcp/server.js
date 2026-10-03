@@ -673,6 +673,12 @@ export function createMcpServer() {
     const attempt = { status: 'pending', loginUrl, browserOpened, controller };
     awaitLoginCompletion({ token, pollUrl, signal: controller.signal })
       .then(() => {
+        // A cancelled login (logout or a newer sign-in aborted this one) must not
+        // restore its token, even if the in-flight poll had already succeeded.
+        if (controller.signal.aborted) {
+          attempt.status = 'aborted';
+          return;
+        }
         attempt.status = 'success';
         attempt.token = token;
         // An explicit CODEANT_API_TOKEN would otherwise keep taking precedence over the new login.
@@ -791,7 +797,7 @@ export function createMcpServer() {
       async (input) => {
         try {
           const text = await captureStdout(() => runStartScan(input));
-          return { content: [{ type: 'text', text: text || '{}' }] };
+          return textResult(text || '{}');
         } catch (err) { return fail(err); }
       }
     );

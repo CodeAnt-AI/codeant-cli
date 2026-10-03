@@ -20,7 +20,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
 | `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos (paged: `limit`, `offset`, `all`). |
-| `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history (newest 10 per provider, paged with `limit`/`offset`, without per-service rollups unless `full`). |
+| `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history (newest first, 10 per provider by default and up to 200, paged with `limit`/`offset`, without per-service rollups unless `full`). |
 | `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan (paged: `limit`, `offset`, `all`; compliance mappings only with `full`). |
 | `codeant_cloud_finding_get` | read | Full detail for one cloud finding UID. |
 | `codeant_pentest_history` | read | Pentest engagement history (paged: `limit`, `offset`, `full`). |
@@ -203,7 +203,7 @@ CodeAnt's MCP server uses stdio + a packaged bundle, so the submission route is 
 
 Reviewer notes worth preparing:
 
-- **Auth model.** Users sign in with the `codeant_login` tool (browser sign-in, token saved to `~/.codeant/config.json`) or paste a token into `user_config.api_token`. The token never leaves the user's machine — the bundle talks to the CodeAnt API (or the user's self-hosted URL) directly. No third-party OAuth flow needed.
+- **Auth model.** Users sign in with the `codeant_login` tool (browser sign-in, token saved to `~/.codeant/config.json`) or paste a token into `user_config.api_token`. The token is stored only on the user's machine (`~/.codeant/config.json`) and is sent only to the CodeAnt API (or the user's self-hosted URL) as a Bearer token — never to any third party. No third-party OAuth flow needed.
 - **Sandbox creds.** Email support@codeant.ai for a reviewer sandbox token; paste it into the submission form's reviewer-notes field along with an org slug that has scans + PRs to browse.
 - **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start` / `codeant_pr_resolve` / `codeant_api_request`.
 
