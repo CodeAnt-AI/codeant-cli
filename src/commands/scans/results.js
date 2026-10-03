@@ -30,6 +30,7 @@ export async function runResults(opts = {}) {
     limit = 100,
     offset = 0,
     failFast = false,
+    returnEnvelope = false,
   } = opts;
 
   if (!repo) {
@@ -145,7 +146,8 @@ export async function runResults(opts = {}) {
     });
   }
 
-  // 10. Render + emit
+  // 10. Render + emit (MCP callers take the envelope instead of stdout)
+  if (returnEnvelope) return envelope;
   const rendered = formatter.render(envelope);
   emit(rendered, outputPath, envelope.findings.length);
 }

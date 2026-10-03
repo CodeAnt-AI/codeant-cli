@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.10] - 03/10/2026
+- MCP: parallel `codeant_scans_results` calls no longer swallow other tool responses, leak findings onto the protocol stream, or hang the server
+- MCP: `codeant_login` returns the sign-in link right away and finishes in the background (call it again to confirm); a missing browser launcher no longer crashes the server
+- MCP: the saved token is read on every request, so `codeant login` / `codeant logout` in a terminal take effect without restarting the server
+- MCP: `codeant_review_local` reports failures (for example, no git repository) as errors instead of an empty issue list
+- MCP: smaller results — compact JSON, slim and paged `codeant_scans_repos`, `codeant_pentest_history`, and cloud scan history, paged CSPM findings without compliance mappings, smaller default page sizes, and a size limit (`CODEANT_MCP_MAX_RESULT_CHARS`, default 80000) that refuses oversized results with a hint
+- MCP: the server sends instructions that tell agents how to discover, page, and recover authentication (including `force: true` when a configured token is rejected)
+- MCP: concurrent `codeant_login` calls share one sign-in; `codeant_cloud_scan_history` pages with `offset`
+- MCP: removed pull request tool parameters that no provider applied (`defaultBranch`, `codeant_pr_comments` `addressed`, `codeant_comments_search` `includeAddressed` and `createdAfter`) and corrected the `codeant_pr_get`, `codeant_pr_comments`, `codeant_comments_search`, and `codeant_api_get` descriptions
+- MCPB: added Dashboard URL and Disable telemetry settings, and listed `codeant_scans_overrides`
+- The Azure DevOps "org URL not found" error now names `AZURE_DEVOPS_ORG_URL` instead of a command that does not exist
+
 ## [0.5.9] - 02/10/2026
 - Added `duplicate_code` to `scans results` / `findings repo`
 - Dismissed and false-positive flags are kept on IaC and dead-code findings, and shown as `metadata.dismissed` / `metadata.false_positive`
