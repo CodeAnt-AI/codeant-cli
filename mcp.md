@@ -11,7 +11,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | Name | Read/Write | What it does |
 |------|------------|--------------|
 | `codeant_scans_orgs` | read | List authenticated CodeAnt orgs. |
-| `codeant_scans_repos` | read | List repos in an org. |
+| `codeant_scans_repos` | read | List repos in an org (slim records, paged: `search`, `limit`, `offset`, `full`). |
 | `codeant_scans_history` | read | Recent scan runs for a repo. |
 | `codeant_scans_get` | read | Severity/category summary for one scan. |
 | `codeant_scans_results` | read | Full findings (SAST, SCA, secrets, IaC, …) for one scan. |
@@ -20,10 +20,10 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
 | `codeant_hotlist_get` | read | One complete Hotlist finding by stable ID. |
 | `codeant_findings_antipatterns` | read | Anti-pattern findings across selected or all organization repos (paged: `limit`, `offset`, `all`). |
-| `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history. |
-| `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan (VM/container paged: `limit`, `offset`, `all`). |
+| `codeant_cloud_scan_history` | read | AWS/Azure/GCP CSPM, VM, or container scan history (newest 10 per provider, paged with `limit`/`offset`, without per-service rollups unless `full`). |
+| `codeant_cloud_findings_list` | read | Findings for one CSPM, VM, or container scan (paged: `limit`, `offset`, `all`; compliance mappings only with `full`). |
 | `codeant_cloud_finding_get` | read | Full detail for one cloud finding UID. |
-| `codeant_pentest_history` | read | Pentest engagement history. |
+| `codeant_pentest_history` | read | Pentest engagement history (paged: `limit`, `offset`, `full`). |
 | `codeant_pentest_issues` | read | All available issues for a pentest engagement. |
 | `codeant_pentest_report` | read | Full pentest customer report. |
 | `codeant_api_get` | read | Authenticated GET request to any relative CodeAnt app API path, with exact org/provider context. |
@@ -31,7 +31,9 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_pr_get` | read | Detail for a PR/MR. |
 | `codeant_pr_comments` | read | Comments on a PR, filtered. |
 | `codeant_comments_search` | read | Free-text search across CodeAnt review comments. |
-| `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes. |
+| `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes in the server's working directory. |
+| `codeant_login` | auth | Start browser sign-in; returns the sign-in link immediately. Call again to confirm. |
+| `codeant_logout` | auth | Revoke and clear the saved token (shared with the CLI). |
 | `codeant_scans_start` | **write** | Trigger a new scan. Gated. |
 | `codeant_pr_resolve` | **write** | Resolve a PR conversation thread. Gated. |
 | `codeant_api_request` | **write** | Authenticated POST/PUT/PATCH/DELETE request to a relative CodeAnt app API path, with exact org/provider context. Gated. |
@@ -40,17 +42,24 @@ Write tools are only registered when `CODEANT_READ_ONLY=0`. Default = read-only.
 
 For complete finding coverage, examples, tenant/provider selection, and response details, see the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).
 
-Every tool carries MCP annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so the client can decide whether to auto-approve calls.
+Every tool carries MCP annotations (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) so the client can decide whether to auto-approve calls. The server also sends `instructions` (discovery order, paging, auth recovery) in its `initialize` result.
+
+Results are compact JSON. Any result over `CODEANT_MCP_MAX_RESULT_CHARS` characters is refused with an error and a narrowing hint; [src/mcp/shape.js](src/mcp/shape.js) holds the MCP-only projections and page defaults. CLI commands keep their full output.
+
+`codeant_login` runs sign-in in the background: the first call returns `{ status: "pending", loginUrl, browserOpened }`, and the next call returns `{ status: "success" }` once the user finishes. The token is read from `~/.codeant/config.json` on every request, so CLI logins and logouts apply to a running server.
 
 ## Configuration (env vars)
 
 | Var | Purpose | Default |
 |-----|---------|---------|
-| `CODEANT_API_TOKEN` | API token (CodeAnt account → settings → API). Required. | — |
-| `CODEANT_API_URL` | API base URL. Override for self-hosted. | `https://api.codeant.ai` |
-| `CODEANT_READ_ONLY` | `1` to hide write tools, `0` to expose them. | `1` |
+| `CODEANT_API_TOKEN` | API token. Optional: without it the server uses the token saved by `codeant login` or `codeant_login`. | — |
+| `CODEANT_API_URL` | API base URL. Override for self-hosted. | `https://service.codeant.ai` |
+| `CODEANT_DASHBOARD_URL` | Web app URL used by `codeant_login`. Needed on self-hosted base URLs. | detected |
+| `CODEANT_READ_ONLY` | `0` or `false` exposes write tools; anything else hides them. | read-only |
+| `CODEANT_TELEMETRY_DISABLED` | `1` or `true` stops usage events (PostHog, tied to the API token). | enabled |
+| `CODEANT_MCP_MAX_RESULT_CHARS` | Largest tool result, in characters, before the server refuses it with a hint. | `80000` |
 
-The CLI also reads these from `~/.codeant/config.json` when not set in env. For MCP usage prefer env — it keeps per-client config explicit.
+The token, base URL, and dashboard URL fall back to `~/.codeant/config.json` when not set in env. PR tools also need an SCM token (`GITHUB_TOKEN`, `GITLAB_TOKEN`, `BITBUCKET_TOKEN`, `AZURE_DEVOPS_TOKEN`) and, for Azure DevOps, `AZURE_DEVOPS_ORG_URL`.
 
 ---
 
@@ -109,10 +118,13 @@ npm run mcpb:build
 open -a Claude dist/codeant.mcpb
 ```
 
-Claude pops an install dialog asking for the `user_config` fields:
-- **CodeAnt API token** (sensitive, required)
-- **API base URL** (defaults to `https://api.codeant.ai`)
+Claude pops an install dialog asking for the `user_config` fields (all optional):
+- **CodeAnt API token** (sensitive; leave blank and call `codeant_login` instead)
+- **API base URL** (defaults to `https://api.codeant.ai`, which the CLI maps to `https://service.codeant.ai`)
+- **Dashboard URL** (self-hosted only; used by `codeant_login`)
 - **Read-only mode** (defaults to on)
+- **Disable telemetry** (defaults to off)
+- SCM tokens and self-hosted SCM URLs for the PR tools
 
 After install, manage it in **Settings → Connectors**.
 
@@ -162,7 +174,7 @@ cd dist/mcpb-stage
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 1) | node server/index.js
 ```
 
-Expect 23 tools in the `tools/list` response (or 26 if `CODEANT_READ_ONLY=0`).
+Expect 24 tools in the `tools/list` response (or 27 if `CODEANT_READ_ONLY=0`). `tests/mcp/server.test.js` checks that this list matches the manifest's `tools`.
 
 ### Bumping the version
 
@@ -191,9 +203,9 @@ CodeAnt's MCP server uses stdio + a packaged bundle, so the submission route is 
 
 Reviewer notes worth preparing:
 
-- **Auth model.** CodeAnt uses a user-scoped API token entered into `user_config.api_token`. The token never leaves the user's machine — the bundle talks to `api.codeant.ai` (or the user's self-hosted URL) directly. No third-party OAuth flow needed.
+- **Auth model.** Users sign in with the `codeant_login` tool (browser sign-in, token saved to `~/.codeant/config.json`) or paste a token into `user_config.api_token`. The token never leaves the user's machine — the bundle talks to the CodeAnt API (or the user's self-hosted URL) directly. No third-party OAuth flow needed.
 - **Sandbox creds.** Email support@codeant.ai for a reviewer sandbox token; paste it into the submission form's reviewer-notes field along with an org slug that has scans + PRs to browse.
-- **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start` / `codeant_pr_resolve`.
+- **Write tools.** Gated behind `user_config.read_only` (defaults to on). Reviewers can toggle off to test `codeant_scans_start` / `codeant_pr_resolve` / `codeant_api_request`.
 
 ---
 
@@ -204,5 +216,8 @@ Reviewer notes worth preparing:
 | Server fails to start in Claude Desktop | `~/Library/Logs/Claude/mcp-server-codeant.log` |
 | Tool calls return errors | Same log — server stderr is captured there. |
 | Tool not listed at all | Check `CODEANT_READ_ONLY` — write tools are hidden when set to `1`. |
-| Auth errors on every tool | Confirm `CODEANT_API_TOKEN` is set in the MCP env (not just in `~/.codeant/config.json`). |
+| Auth errors on every tool | Call `codeant_login`, or run `codeant login` in a terminal; the server reads `~/.codeant/config.json` on every request. An explicit `CODEANT_API_TOKEN` in the MCP env takes precedence, so check it is current. |
+| `codeant_login` fails on a self-hosted instance | Set `CODEANT_DASHBOARD_URL` (or the MCPB **Dashboard URL** setting, or `codeant set-dashboard-url`). |
+| A tool returns "Result too large" | Follow the hint (smaller `limit`, filters, `fields`), or raise `CODEANT_MCP_MAX_RESULT_CHARS` if your client accepts larger results. |
+| `codeant_review_local` returns "Could not find a .git directory" | The client started the server outside a git repository (Claude Desktop does). Use a project-scoped client such as Claude Code. |
 | MCPB install dialog never appears | Open `.mcpb` with `open -a Claude dist/codeant.mcpb` to force the desktop app to handle it. |

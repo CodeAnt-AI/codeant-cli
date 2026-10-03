@@ -12,14 +12,14 @@ import { runDismissed, runOverrides } from '../commands/scans/dismissed.js';
 import { runStartScan } from '../commands/scans/start-scan.js';
 import { runReviewHeadless } from '../reviewHeadless.js';
 import * as scm from '../scm/index.js';
-import { isAlreadyLoggedIn, runLoginFlow } from '../utils/loginFlow.js';
-import { getConfigValue } from '../utils/config.js';
+import { awaitLoginCompletion, isAlreadyLoggedIn, startLoginFlow } from '../utils/loginFlow.js';
 import { runHotlistGet, runHotlistList } from '../hotlist/client.js';
 import { logoutCodeAnt } from '../utils/logout.js';
 import { runApiRequest } from '../commands/api/request.js';
 import { runOrganizationAntipatterns } from '../findings/antipatterns.js';
 import { runCloudFindingGet, runCloudFindings, runCloudHistory } from '../findings/cloud.js';
 import { runPentestHistory, runPentestIssues, runPentestReport } from '../findings/pentest.js';
+import { maxResultChars, shapeCloudFindings, shapeCloudHistory, shapePentestHistory, shapeRepos, tooLarge } from './shape.js';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../package.json');
@@ -34,28 +34,48 @@ function isReadOnly() {
   return v !== '0' && v.toLowerCase() !== 'false';
 }
 
-function ok(value) {
-  return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] };
+const INSTRUCTIONS = `CodeAnt AI tools for repository scans, organization-wide security findings, cloud security, pentests, pull requests, and local code review.
+
+- Start with codeant_scans_orgs. When it lists more than one connection, pass org and service to the Hotlist, anti-pattern, cloud, pentest, and API tools.
+- Repository findings: codeant_scans_repos (use full_name) -> codeant_scans_history or codeant_scans_get -> codeant_scans_results, once per repository. Parallel calls are safe.
+- Prioritized findings across the organization: codeant_hotlist_list, then codeant_hotlist_get for one finding.
+- Cloud security: codeant_cloud_scan_history -> codeant_cloud_findings_list (pass status "FAIL" to skip passing checks) -> codeant_cloud_finding_get. Pentests: codeant_pentest_history -> codeant_pentest_issues or codeant_pentest_report.
+- List tools return one page with a total. Page with limit and offset (cursor and next_cursor for the Hotlist), and narrow with filters instead of requesting everything. Results over the size limit are refused with a hint.
+- codeant_review_local and the pull request tools work on the git repository in this server's working directory. Outside a repository, pass name and remote to the pull request tools; local review is unavailable.
+- Pull request and comment tools call GitHub, GitLab, Bitbucket, or Azure DevOps directly and need a token for that provider.
+- On an authentication error ("Missing API key", "Invalid API key", or access denied), call codeant_login with force: true (a configured token may be stale), show the returned loginUrl to the user, and after they finish signing in call codeant_login again without force to confirm.`;
+
+function textResult(text, hint) {
+  if (text.length > maxResultChars()) return fail(tooLarge(text.length, hint));
+  return { content: [{ type: 'text', text }] };
+}
+
+function ok(value, hint) {
+  return textResult(JSON.stringify(value), hint);
 }
 
 function fail(err) {
-  const message = err instanceof Error ? err.message : String(err);
+  const body = err instanceof Error ? { error: err.message } : err && typeof err === 'object' ? err : { error: String(err) };
   return {
     isError: true,
-    content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(body) }],
   };
+}
+
+function maskToken(token) {
+  return token ? `${token.slice(0, 8)}…` : null;
 }
 
 function resolveRepoOpts(input) {
   const remote = input.remote || scm.detectRemote();
   const name = input.name || scm.detectRepoName();
-  const defaultBranch = input.defaultBranch || scm.detectDefaultBranch();
   if (!remote) throw new Error('Could not detect remote. Pass `remote` (github|gitlab|bitbucket|azure).');
   if (!name) throw new Error('Could not detect repo name. Pass `name` (owner/repo).');
-  return { ...input, remote, name, defaultBranch };
+  return { ...input, remote, name };
 }
 
-// Capture stdout from a function that writes JSON to stdout (used for `scans results` and `scans start-scan`).
+// Capture stdout from a function that writes JSON to stdout (only `scans start-scan`, a write tool).
+// It swaps the global stdout writer, so overlapping calls must not use it.
 async function captureStdout(fn) {
   const chunks = [];
   const origWrite = process.stdout.write.bind(process.stdout);
@@ -71,22 +91,25 @@ async function captureStdout(fn) {
   return chunks.join('');
 }
 
-async function ensureAuthenticated() {
-  const envToken = process.env.CODEANT_API_TOKEN;
-  if (envToken && envToken.trim()) return;
-  if (isAlreadyLoggedIn()) {
-    process.env.CODEANT_API_TOKEN = getConfigValue('apiKeyV2');
-    return;
-  }
+function hasEnvToken() {
+  return !!process.env.CODEANT_API_TOKEN?.trim();
+}
 
+// The saved token is read from ~/.codeant/config.json on every request, so a
+// `codeant login` in another terminal takes effect without restarting the server.
+function warnIfUnauthenticated() {
+  if (hasEnvToken() || isAlreadyLoggedIn()) return;
   console.error('[codeant-mcp] No API token configured. Call the codeant_login tool to sign in, or set CODEANT_API_TOKEN.');
 }
 
-export async function startMcpServer() {
-  await ensureAuthenticated();
+export function createMcpServer() {
+  warnIfUnauthenticated();
 
-  const server = new McpServer({ name: 'codeant', version: pkg.version });
+  const server = new McpServer({ name: 'codeant', version: pkg.version }, { instructions: INSTRUCTIONS });
   const readOnly = isReadOnly();
+  let login = null;
+  // codeant_login calls run one at a time so concurrent calls share one sign-in.
+  let loginQueue = Promise.resolve();
 
   // ─── Scans: discovery ────────────────────────────────────────────────────
   server.registerTool(
@@ -106,14 +129,18 @@ export async function startMcpServer() {
     'codeant_scans_repos',
     {
       title: 'List repositories in a CodeAnt org',
-      description: 'List repositories connected to CodeAnt for a given organization. Use this to enumerate repos before fanning out org-wide queries (e.g. "secrets across all repos"). If `org` is omitted and the user has exactly one org, it is auto-picked.',
+      description: 'List repositories connected to CodeAnt for a given organization, most recently pushed first. Use this to enumerate repos before fanning out org-wide queries (e.g. "secrets across all repos"). Returns one page of slim records (full_name, default_branch, language, pushed_at, ...) with total and next_offset. If `org` is omitted and the user has exactly one org, it is auto-picked.',
       inputSchema: {
         org: z.string().optional().describe('Organization name. Optional when only one org is authenticated.'),
+        search: z.string().optional().describe('Case-insensitive substring match on the repository name.'),
+        limit: z.number().int().positive().max(1000).optional().describe('Max repositories returned (default 100).'),
+        offset: z.number().int().nonnegative().optional().describe('Pagination offset (default 0).'),
+        full: z.boolean().optional().describe('Return the complete provider records instead of slim ones. Default false.'),
       },
       annotations: READ,
     },
-    async ({ org }) => {
-      try { return ok(await runRepos({ org })); } catch (err) { return fail(err); }
+    async ({ org, ...shape }) => {
+      try { return ok(shapeRepos(await runRepos({ org }), shape), 'Use search, or a smaller limit with offset.'); } catch (err) { return fail(err); }
     }
   );
 
@@ -171,34 +198,30 @@ export async function startMcpServer() {
         filterDismissed: z.boolean().optional().describe('Exclude dismissed findings (default false). When false, dismissed findings carry metadata.dismissed.'),
         includeFalsePositives: z.boolean().optional().describe('Include false positives, including user-marked ones (default true). When true, they carry metadata.false_positive.'),
         fields: z.string().optional().describe('Project findings to a subset of fields (comma-separated).'),
-        limit: z.number().int().positive().max(500).optional().describe('Max findings per page (default 100).'),
+        limit: z.number().int().positive().max(500).optional().describe('Max findings per page (default 50).'),
         offset: z.number().int().nonnegative().optional().describe('Pagination offset (default 0).'),
       },
       annotations: READ,
     },
     async (input) => {
       try {
-        const text = await captureStdout(() =>
-          runResults({
-            repo: input.repo,
-            scan: input.scan,
-            branch: input.branch,
-            types: input.types ?? 'all',
-            severity: input.severity,
-            path: input.path,
-            check: input.check,
-            filterDismissed: input.filterDismissed ?? false,
-            includeFalsePositives: input.includeFalsePositives ?? true,
-            format: 'json',
-            output: undefined,
-            fields: input.fields,
-            limit: input.limit ?? 100,
-            offset: input.offset ?? 0,
-            failFast: false,
-          })
-        );
-        // runResults already emits JSON; pass it through unparsed to preserve shape.
-        return { content: [{ type: 'text', text: text || '{}' }] };
+        const envelope = await runResults({
+          repo: input.repo,
+          scan: input.scan,
+          branch: input.branch,
+          types: input.types ?? 'all',
+          severity: input.severity,
+          path: input.path,
+          check: input.check,
+          filterDismissed: input.filterDismissed ?? false,
+          includeFalsePositives: input.includeFalsePositives ?? true,
+          fields: input.fields,
+          limit: input.limit ?? 50,
+          offset: input.offset ?? 0,
+          failFast: false,
+          returnEnvelope: true,
+        });
+        return ok(envelope, 'Use a smaller limit with offset, filter by types, severity, path, or check, or project fields.');
       } catch (err) {
         return fail(err);
       }
@@ -254,15 +277,17 @@ export async function startMcpServer() {
         ticketStatuses: z.array(z.enum(['created', 'not_created'])).optional(),
         compliance: z.array(z.string()).optional(),
         validation: z.array(z.enum(['exploit_confirmed'])).optional(),
-        limit: z.number().int().positive().max(100).optional(),
-        cursor: z.string().optional(),
+        limit: z.number().int().positive().max(100).optional().describe('Page size (default 10).'),
+        cursor: z.string().optional().describe('next_cursor from a previous page.'),
         all: z.boolean().optional().describe('Fetch every matching page. Default false.'),
         maxWaitSeconds: z.number().int().nonnegative().max(600).optional(),
       },
       annotations: READ,
     },
     async (input) => {
-      try { return ok(await runHotlistList(input)); } catch (err) { return fail(err); }
+      try {
+        return ok(await runHotlistList({ ...input, limit: input.limit ?? 10 }), 'Page with limit and cursor instead of all, or add filters such as severities or types.');
+      } catch (err) { return fail(err); }
     }
   );
 
@@ -295,14 +320,16 @@ export async function startMcpServer() {
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
         providerBaseUrl: z.string().url().optional(),
         repos: z.array(z.string()).optional().describe('Repositories in owner/repo form. Omit to query every repository.'),
-        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 500).'),
+        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 25).'),
         offset: z.number().int().nonnegative().optional().describe('Start offset, a multiple of limit (default 0).'),
         all: z.boolean().optional().describe('Fetch every page from offset on instead of one page.'),
       },
       annotations: READ,
     },
     async (input) => {
-      try { return ok(await runOrganizationAntipatterns(input)); } catch (err) { return fail(err); }
+      try {
+        return ok(await runOrganizationAntipatterns({ ...input, limit: input.limit ?? 25 }), 'Page with limit and offset instead of all, or pass fewer repos.');
+      } catch (err) { return fail(err); }
     }
   );
 
@@ -318,11 +345,16 @@ export async function startMcpServer() {
         provider: z.enum(['aws', 'azure', 'gcp', 'all']).optional().describe('Default all.'),
         kind: z.enum(['cspm', 'vm', 'container']).optional().describe('Default cspm.'),
         latest: z.boolean().optional().describe('Return latest scans instead of complete history. CSPM only.'),
+        limit: z.number().int().positive().max(200).optional().describe('Max scans returned per provider, newest first (default 10).'),
+        offset: z.number().int().nonnegative().optional().describe('Pagination offset within each provider (default 0).'),
+        full: z.boolean().optional().describe('Keep per-service, compliance, and region rollups on each scan. Default false.'),
       },
       annotations: READ,
     },
-    async (input) => {
-      try { return ok(await runCloudHistory(input)); } catch (err) { return fail(err); }
+    async ({ limit, offset, full, ...input }) => {
+      try {
+        return ok(shapeCloudHistory(await runCloudHistory(input), { limit: limit ?? 10, offset: offset ?? 0, full }), 'Pass a single provider, a smaller limit, or latest: true.');
+      } catch (err) { return fail(err); }
     }
   );
 
@@ -330,7 +362,7 @@ export async function startMcpServer() {
     'codeant_cloud_findings_list',
     {
       title: 'List cloud security findings',
-      description: 'Fetch findings for one AWS, Azure, or GCP CSPM, VM, or container scan. VM and container results are paged (limit/offset/all) and carry total.',
+      description: 'Fetch findings for one AWS, Azure, or GCP CSPM, VM, or container scan. Results are paged (limit/offset/all) and carry total; pass status "FAIL" to skip passing CSPM checks. Compliance mappings are omitted unless full is true.',
       inputSchema: {
         org: z.string().optional(),
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
@@ -348,14 +380,22 @@ export async function startMcpServer() {
         subscriptionId: z.string().optional(),
         exploitAttemptedOnly: z.boolean().optional(),
         minDaysUnused: z.number().int().nonnegative().optional(),
-        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 500).'),
+        limit: z.union([z.literal(25), z.literal(100), z.literal(500)]).optional().describe('Page size (default 25).'),
         offset: z.number().int().nonnegative().optional().describe('Start offset, a multiple of limit (default 0).'),
         all: z.boolean().optional().describe('Fetch every page from offset on instead of one page.'),
+        full: z.boolean().optional().describe('Keep compliance mappings on each finding. Default false.'),
       },
       annotations: READ,
     },
-    async (input) => {
-      try { return ok(await runCloudFindings(input)); } catch (err) { return fail(err); }
+    async ({ full, ...input }) => {
+      try {
+        const limit = input.limit ?? 25;
+        const result = await runCloudFindings({ ...input, limit });
+        return ok(
+          shapeCloudFindings(result, { kind: input.kind ?? 'cspm', limit, offset: input.offset ?? 0, all: input.all, full }),
+          'Filter by status (for example "FAIL"), severity, or cloudService, or page with limit and offset instead of all.',
+        );
+      } catch (err) { return fail(err); }
     }
   );
 
@@ -388,16 +428,21 @@ export async function startMcpServer() {
     'codeant_pentest_history',
     {
       title: 'List pentest engagements',
-      description: 'List every pentest engagement visible in the CodeAnt Pentesting UI, including status and finding counts.',
+      description: 'List pentest engagements visible in the CodeAnt Pentesting UI, newest first, including status and finding counts. Returns one page with total and next_offset.',
       inputSchema: {
         org: z.string().optional(),
         service: z.enum(['github', 'gitlab', 'bitbucket', 'azuredevops']).optional(),
         providerBaseUrl: z.string().url().optional(),
+        limit: z.number().int().positive().max(500).optional().describe('Max engagements returned (default 25).'),
+        offset: z.number().int().nonnegative().optional().describe('Pagination offset (default 0).'),
+        full: z.boolean().optional().describe('Keep credit and billing details on each engagement. Default false.'),
       },
       annotations: READ,
     },
-    async (input) => {
-      try { return ok(await runPentestHistory(input)); } catch (err) { return fail(err); }
+    async ({ limit, offset, full, ...input }) => {
+      try {
+        return ok(shapePentestHistory(await runPentestHistory(input), { limit: limit ?? 25, offset: offset ?? 0, full }), 'Use a smaller limit with offset.');
+      } catch (err) { return fail(err); }
     }
   );
 
@@ -445,7 +490,7 @@ export async function startMcpServer() {
     'codeant_api_get',
     {
       title: 'Call a CodeAnt GET API',
-      description: 'Call any authenticated GET endpoint on the configured CodeAnt API host. The path must be relative (for example /extension/scans2/validate); absolute URLs are rejected.',
+      description: 'Call any authenticated GET endpoint on the configured CodeAnt API host, for read APIs no dedicated tool covers. The path must be relative and start with a single "/"; absolute URLs are rejected. Returns { ok, status, tenant, data }; non-2xx responses come back with ok: false.',
       inputSchema: {
         path: z.string().startsWith('/'),
         org: z.string().optional().describe('Organization name. Required when the login has multiple matching connections.'),
@@ -470,12 +515,11 @@ export async function startMcpServer() {
       inputSchema: {
         name: z.string().optional().describe('Repository in owner/repo form. Auto-detected if omitted.'),
         remote: z.enum(['github', 'gitlab', 'bitbucket', 'azure']).optional().describe('Auto-detected if omitted.'),
-        defaultBranch: z.string().optional(),
-        sourceBranch: z.string().optional(),
-        author: z.string().optional().describe('Filter by author login (fuzzy).'),
+        sourceBranch: z.string().optional().describe('Source branch. Exact match, except substring on Bitbucket.'),
+        author: z.string().optional().describe('Author. Substring of the login on GitHub and Bitbucket, exact username on GitLab, identity ID on Azure DevOps.'),
         state: z.enum(['open', 'closed']).optional().describe('Default "open".'),
-        limit: z.number().int().positive().max(100).optional(),
-        offset: z.number().int().nonnegative().optional(),
+        limit: z.number().int().positive().max(100).optional().describe('Max results (default 20).'),
+        offset: z.number().int().nonnegative().optional().describe('Pagination offset, rounded down to a multiple of limit on GitHub and GitLab; ignored on Bitbucket and Azure DevOps.'),
       },
       annotations: READ,
     },
@@ -486,7 +530,6 @@ export async function startMcpServer() {
           await scm.listPullRequests({
             name: opts.name,
             remote: opts.remote,
-            defaultBranch: opts.defaultBranch,
             sourceBranch: opts.sourceBranch,
             authorLogin: opts.author,
             state: opts.state ?? 'open',
@@ -502,12 +545,11 @@ export async function startMcpServer() {
     'codeant_pr_get',
     {
       title: 'Get pull request details',
-      description: 'Fetch detailed information for a single PR/MR including review analysis.',
+      description: 'Fetch one PR/MR: provider metadata (title, state, branches, author, dates) and reviewer approval states.',
       inputSchema: {
         prNumber: z.number().int().positive(),
         name: z.string().optional(),
         remote: z.enum(['github', 'gitlab', 'bitbucket', 'azure']).optional(),
-        defaultBranch: z.string().optional(),
       },
       annotations: READ,
     },
@@ -518,7 +560,6 @@ export async function startMcpServer() {
           await scm.getPullRequest({
             name: opts.name,
             remote: opts.remote,
-            defaultBranch: opts.defaultBranch,
             prNumber: input.prNumber,
           })
         );
@@ -530,14 +571,12 @@ export async function startMcpServer() {
     'codeant_pr_comments',
     {
       title: 'List PR comments',
-      description: 'List comments on a PR/MR with optional filters (CodeAnt-authored only, resolved/unresolved, date range).',
+      description: 'List comments on a PR/MR, optionally only CodeAnt-authored ones or those in a date range. GitLab, Bitbucket, and Azure DevOps comments carry a resolved flag; GitHub comments do not.',
       inputSchema: {
         prNumber: z.number().int().positive(),
         name: z.string().optional(),
         remote: z.enum(['github', 'gitlab', 'bitbucket', 'azure']).optional(),
-        defaultBranch: z.string().optional(),
         codeantGenerated: z.boolean().optional().describe('Only return comments authored by CodeAnt.'),
-        addressed: z.boolean().optional().describe('Filter by addressed/resolved status.'),
         createdAfter: z.string().optional().describe('ISO 8601.'),
         createdBefore: z.string().optional().describe('ISO 8601.'),
       },
@@ -550,10 +589,8 @@ export async function startMcpServer() {
           await scm.listPullRequestComments({
             name: opts.name,
             remote: opts.remote,
-            defaultBranch: opts.defaultBranch,
             prNumber: input.prNumber,
             codeantGenerated: input.codeantGenerated,
-            addressed: input.addressed,
             createdAfter: input.createdAfter,
             createdBefore: input.createdBefore,
           })
@@ -566,14 +603,12 @@ export async function startMcpServer() {
     'codeant_comments_search',
     {
       title: 'Search CodeAnt review comments',
-      description: 'Search across CodeAnt review comments by free-text query. Returns matching comments with repo, PR, and file context.',
+      description: 'Case-insensitive text search over review comments on the 10 most recently updated PRs/MRs of one repository (open ones only on Bitbucket and Azure DevOps). Matches comments from every author; each result has isCodeantComment, prNumber, path, and line.',
       inputSchema: {
         query: z.string(),
         name: z.string().optional(),
         remote: z.enum(['github', 'gitlab', 'bitbucket', 'azure']).optional(),
-        limit: z.number().int().positive().max(50).optional(),
-        includeAddressed: z.boolean().optional(),
-        createdAfter: z.string().optional().describe('ISO 8601.'),
+        limit: z.number().int().positive().max(50).optional().describe('Max matching comments returned (default 10).'),
       },
       annotations: READ,
     },
@@ -586,8 +621,6 @@ export async function startMcpServer() {
             remote: opts.remote,
             query: input.query,
             limit: input.limit ?? 10,
-            includeAddressed: input.includeAddressed ?? false,
-            createdAfter: input.createdAfter,
           })
         );
       } catch (err) { return fail(err); }
@@ -599,7 +632,7 @@ export async function startMcpServer() {
     'codeant_review_local',
     {
       title: 'Review local working-copy changes',
-      description: 'Run a CodeAnt AI review on local working-copy changes and return the findings as JSON. Does not modify files — pair with editor tools to apply fixes. Use this for "review my changes" / "check my staged files" prompts.',
+      description: 'Run a CodeAnt AI review on local working-copy changes and return the findings as JSON. Reviews the git repository in the server\'s working directory, so it needs a client that starts the server inside the project. Does not modify files — pair with editor tools to apply fixes. Use this for "review my changes" / "check my staged files" prompts.',
       inputSchema: {
         scope: z
           .enum(['all', 'uncommitted', 'staged-only', 'committed', 'last-commit', 'last-n-commits', 'base-branch', 'base-commit'])
@@ -626,32 +659,73 @@ export async function startMcpServer() {
           onProgress: () => {},
           onFilesReady: () => {},
         });
-        return ok(result);
+        return result?.error ? fail(result) : ok(result);
       } catch (err) { return fail(err); }
     }
   );
 
   // ─── Auth (always registered — login is needed even in read-only mode) ───
+  // Sign-in runs in the background so the login URL reaches the user right away,
+  // even when no browser can be opened (SSH, containers).
+  async function beginLogin() {
+    const controller = new AbortController();
+    const { token, loginUrl, pollUrl, browserOpened } = await startLoginFlow();
+    const attempt = { status: 'pending', loginUrl, browserOpened, controller };
+    awaitLoginCompletion({ token, pollUrl, signal: controller.signal })
+      .then(() => {
+        attempt.status = 'success';
+        attempt.token = token;
+        // An explicit CODEANT_API_TOKEN would otherwise keep taking precedence over the new login.
+        if (hasEnvToken()) process.env.CODEANT_API_TOKEN = token;
+      })
+      .catch((err) => {
+        attempt.status = controller.signal.aborted ? 'aborted' : 'failed';
+        attempt.error = err.message;
+      });
+    return attempt;
+  }
+
+  function pendingLogin(attempt) {
+    return {
+      status: 'pending',
+      loginUrl: attempt.loginUrl,
+      browserOpened: attempt.browserOpened,
+      message: attempt.browserOpened
+        ? 'A browser window opened for CodeAnt sign-in. If it did not appear, open loginUrl. After signing in, call codeant_login again to confirm; sign-in is detected within about 10 seconds.'
+        : 'Open loginUrl in a browser to sign in to CodeAnt, then call codeant_login again to confirm; sign-in is detected within about 10 seconds. The link expires in 10 minutes.',
+    };
+  }
+
+  async function handleLogin({ force }) {
+    try {
+      if (login && !force) {
+        if (login.status === 'pending') return ok(pendingLogin(login));
+        const finished = login;
+        login = null;
+        if (finished.status === 'success') return ok({ status: 'success', token: maskToken(finished.token) });
+        return fail(new Error(`${finished.error} Call codeant_login again to start a new sign-in.`));
+      }
+      if (!force && (hasEnvToken() || isAlreadyLoggedIn())) return ok({ alreadyLoggedIn: true });
+      login?.controller.abort();
+      login = await beginLogin();
+      return ok(pendingLogin(login));
+    } catch (err) { return fail(err); }
+  }
+
   server.registerTool(
     'codeant_login',
     {
       title: 'Sign in to CodeAnt AI',
-      description: 'Opens the configured CodeAnt dashboard in the user\'s browser and waits up to 10 minutes for them to complete sign-in. Tell the user to check their browser and finish the flow there. On success the API token is saved to ~/.codeant/config.json (apiKeyV2) and set on the running MCP process, so subsequent tool calls are authenticated without restart. Returns { alreadyLoggedIn: true } immediately if a token is already configured, unless `force` is true.',
+      description: 'Start browser sign-in to CodeAnt AI. Returns immediately with { status: "pending", loginUrl, browserOpened }: show loginUrl to the user (the browser may not open, for example over SSH), then call codeant_login again after they finish to get { status: "success" }. The link expires after 10 minutes. The token is saved to ~/.codeant/config.json (apiKeyV2), which the CodeAnt CLI shares, and later calls use it without a restart. Returns { alreadyLoggedIn: true } if a token is already configured; pass force: true when tools reject that token.',
       inputSchema: {
-        force: z.boolean().optional().describe('Re-authenticate even if a token is already configured. Default false.'),
+        force: z.boolean().optional().describe('Start a new sign-in even if a token is already configured, for example when tools reject it as invalid. Default false.'),
       },
       annotations: { ...WRITE_NON_DESTRUCTIVE, idempotentHint: true },
     },
-    async ({ force }) => {
-      try {
-        const envToken = process.env.CODEANT_API_TOKEN;
-        if (!force && ((envToken && envToken.trim()) || isAlreadyLoggedIn())) {
-          return ok({ alreadyLoggedIn: true });
-        }
-        const { token, loginUrl } = await runLoginFlow();
-        const masked = token ? `${token.slice(0, 8)}…` : null;
-        return ok({ status: 'success', loginUrl, token: masked });
-      } catch (err) { return fail(err); }
+    ({ force }) => {
+      const run = loginQueue.then(() => handleLogin({ force }));
+      loginQueue = run.catch(() => {});
+      return run;
     }
   );
 
@@ -659,12 +733,14 @@ export async function startMcpServer() {
     'codeant_logout',
     {
       title: 'Sign out of CodeAnt AI',
-      description: 'Clears the saved API token from ~/.codeant/config.json and unsets CODEANT_API_TOKEN on the running MCP process. Returns { wasLoggedIn: false } immediately if no token was configured.',
+      description: 'Revoke the API token on the server, clear it from ~/.codeant/config.json (which also signs out the CodeAnt CLI), unset CODEANT_API_TOKEN on the running MCP process, and cancel a pending codeant_login. Returns { wasLoggedIn: false } immediately if no token was configured.',
       inputSchema: {},
       annotations: { ...WRITE_NON_DESTRUCTIVE, idempotentHint: true },
     },
     async () => {
       try {
+        login?.controller.abort();
+        login = null;
         const result = await logoutCodeAnt();
         return ok({
           ...result,
@@ -753,6 +829,11 @@ export async function startMcpServer() {
     );
   }
 
+  return server;
+}
+
+export async function startMcpServer() {
+  const server = createMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

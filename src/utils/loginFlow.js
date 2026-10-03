@@ -4,6 +4,7 @@ import { getBaseUrl, getDashboardUrl } from './baseUrl.js';
 
 const DEFAULT_POLL_INTERVAL = 10_000;
 const DEFAULT_TIMEOUT = 10 * 60 * 1000;
+const BROWSER_SPAWN_TIMEOUT = 2_000;
 
 export function isAlreadyLoggedIn() {
   return !!getConfigValue('apiKeyV2');
@@ -16,16 +17,24 @@ export async function startLoginFlow() {
   const loginUrl = `${dashboardUrl}?ideLoginToken=${token}`;
   const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
 
-  let browserOpened = false;
+  const browserOpened = await openBrowser(loginUrl);
+  return { token, loginUrl, pollUrl, browserOpened };
+}
+
+// `open` returns the launcher process without an 'error' listener, so a missing
+// launcher (SSH, containers) would otherwise crash the MCP server.
+async function openBrowser(url) {
   try {
     const { default: open } = await import('open');
-    await open(loginUrl);
-    browserOpened = true;
+    const child = await open(url);
+    return await new Promise((resolve) => {
+      child.once('error', () => resolve(false));
+      child.once('spawn', () => resolve(true));
+      setTimeout(() => resolve(true), BROWSER_SPAWN_TIMEOUT).unref?.();
+    });
   } catch {
-    // Caller can fall back to printing loginUrl.
+    return false;
   }
-
-  return { token, loginUrl, pollUrl, browserOpened };
 }
 
 export async function awaitLoginCompletion({
@@ -49,7 +58,6 @@ export async function awaitLoginCompletion({
       const data = await response.json();
       if (data.status === 'yes') {
         setConfigValue('apiKeyV2', token);
-        process.env.CODEANT_API_TOKEN = token;
         return { ok: true, token };
       }
     } catch {
@@ -58,18 +66,13 @@ export async function awaitLoginCompletion({
 
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(pollIntervalMs, remaining)));
+    await new Promise((resolve) => {
+      const onAbort = () => { clearTimeout(timer); resolve(); };
+      const timer = setTimeout(() => { signal?.removeEventListener('abort', onAbort); resolve(); }, Math.min(pollIntervalMs, remaining));
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
+  if (signal?.aborted) throw new Error('Login aborted');
   throw new Error('Login timed out. Please try again.');
-}
-
-export async function runLoginFlow({
-  pollIntervalMs = DEFAULT_POLL_INTERVAL,
-  timeoutMs = DEFAULT_TIMEOUT,
-  signal,
-} = {}) {
-  const { token, loginUrl, pollUrl, browserOpened } = await startLoginFlow();
-  const result = await awaitLoginCompletion({ token, pollUrl, pollIntervalMs, timeoutMs, signal });
-  return { ...result, loginUrl, browserOpened };
 }

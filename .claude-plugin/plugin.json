@@ -1,13 +1,13 @@
 {
   "name": "codeant",
-  "version": "0.4.14",
+  "version": "0.5.10",
   "description": "CodeAnt AI MCP server inside Claude Code — org-wide secret triage, cross-repo SAST/SCA findings, on-demand scans, and local PR review.",
   "author": {
     "name": "CodeAnt AI",
     "email": "support@codeant.ai"
   },
-  "homepage": "https://docs.codeant.ai/cli/claude-code-integration",
-  "documentation": "https://docs.codeant.ai/cli/claude-code-integration",
+  "homepage": "https://docs.codeant.ai/cli/mcp-server",
+  "documentation": "https://docs.codeant.ai/cli/mcp-server",
   "license": "MIT",
   "keywords": [
     "code-review",
