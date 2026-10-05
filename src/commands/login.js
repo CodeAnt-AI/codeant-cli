@@ -12,6 +12,7 @@ export default function Login() {
   const [status, setStatus] = useState('opening');
   const [error, setError] = useState(null);
   const [loginUrl, setLoginUrl] = useState('');
+  const [pollResults, setPollResults] = useState([]);
 
   useEffect(() => {
     // Check if already logged in
@@ -25,9 +26,11 @@ export default function Login() {
     const token = `cli___${randomUUID()}`;
     const baseUrl = getBaseUrl();
     const pollUrl = `${baseUrl}/extension/login/status?apiKey=${token}`;
+    const displayPollUrl = `${baseUrl}/extension/login/status?apiKey=[redacted]`;
 
     let intervalId;
     let timeoutId;
+    let pollCount = 0;
 
     (async () => {
       let dashboardUrl;
@@ -54,11 +57,14 @@ export default function Login() {
 
       // Poll for login status
       intervalId = setInterval(async () => {
+        const attempt = ++pollCount;
+        let response;
         try {
-          const response = await fetch(pollUrl);
+          response = await fetch(pollUrl);
           const data = await response.json();
+          setPollResults((results) => [...results, `Check ${attempt}: GET ${displayPollUrl} → HTTP ${response.status}, status: ${data?.status ?? 'missing'}`]);
 
-          if (data.status === 'yes') {
+          if (data?.status === 'yes') {
             clearInterval(intervalId);
             clearTimeout(timeoutId);
 
@@ -69,7 +75,8 @@ export default function Login() {
             setTimeout(() => exit(), 100);
           }
         } catch (err) {
-          // Silently continue polling
+          const code = err.cause?.code || err.code || err.name;
+          setPollResults((results) => [...results, `Check ${attempt}: GET ${displayPollUrl} → ${response ? `HTTP ${response.status}, ` : ''}error: ${code}`]);
         }
       }, POLL_INTERVAL);
 
@@ -88,6 +95,10 @@ export default function Login() {
       clearTimeout(timeoutId);
     };
   }, []);
+
+  const pollLines = pollResults.map((result, index) =>
+    React.createElement(Text, { color: 'gray', key: index }, result)
+  );
 
   if (status === 'already_logged_in') {
     return React.createElement(
@@ -112,7 +123,8 @@ export default function Login() {
       { flexDirection: 'column', padding: 1 },
       React.createElement(Text, { color: 'cyan' }, `Waiting for login. Open this URL in your browser: ${loginUrl}`),
       React.createElement(Text, { color: 'gray' }, 'Complete the login in your browser.'),
-      React.createElement(Text, { color: 'gray' }, 'Checking every 10 seconds. Timeout in 10 minutes.')
+      React.createElement(Text, { color: 'gray' }, 'Checking every 10 seconds. Timeout in 10 minutes.'),
+      ...pollLines
     );
   }
 
@@ -120,7 +132,8 @@ export default function Login() {
     return React.createElement(
       Box,
       { flexDirection: 'column', padding: 1 },
-      React.createElement(Text, { color: 'green' }, '✓ Login successful!')
+      React.createElement(Text, { color: 'green' }, '✓ Login successful!'),
+      ...pollLines
     );
   }
 
@@ -128,7 +141,8 @@ export default function Login() {
     return React.createElement(
       Box,
       { flexDirection: 'column', padding: 1 },
-      React.createElement(Text, { color: 'red' }, '✗ ', error)
+      React.createElement(Text, { color: 'red' }, '✗ ', error),
+      ...pollLines
     );
   }
 
