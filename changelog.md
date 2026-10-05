@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.5.11] - 05/10/2026
+- `codeant login` shows every status check with the HTTP response, login status, or request error, while masking the token in request diagnostics
+
 ## [0.5.10] - 03/10/2026
 - MCP: parallel `codeant_scans_results` calls no longer swallow other tool responses, leak findings onto the protocol stream, or hang the server
 - MCP: `codeant_login` returns the sign-in link right away and finishes in the background (call it again to confirm); a missing browser launcher no longer crashes the server
