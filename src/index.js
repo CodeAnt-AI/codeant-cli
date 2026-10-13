@@ -72,8 +72,8 @@ program
   .option('--staged', 'Scan only staged files')
   .option('--last-commit', 'Scan last commit')
   .option('--last-n-commits <n>', 'Scan last n commits (max 5)', toCount)
-  .option('--base <branch>', 'Compare against a specific base branch (e.g. --base develop)')
-  .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
+  .option('--base <branch>', 'Scan committed + uncommitted + untracked changes since the merge-base with a branch (e.g. --base develop). Takes precedence over the other scope flags')
+  .option('--base-commit <commit>', 'Scan committed + uncommitted + untracked changes since a commit (e.g. --base-commit HEAD~3). Takes precedence over the other scope flags')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
   .option('--exclude <paths>', 'Comma-separated list of file paths glob patterns to exclude')
   .option('--hook', 'Running from pre-commit hook (enables bypass prompt)')
@@ -83,6 +83,8 @@ program
     let baseBranch = null;
     let baseCommit = null;
 
+    // Precedence: --base > --base-commit > other scope flags. The base modes already diff
+    // against the working tree, so they include uncommitted and untracked changes too.
     if (options.base) {
       scanType = 'base-branch';
       baseBranch = options.base;
@@ -123,8 +125,8 @@ program
   .option('--staged', 'Review only staged files')
   .option('--last-commit', 'Review last commit')
   .option('--last-n-commits <n>', 'Review last n commits (max 5)', toCount)
-  .option('--base <branch>', 'Compare against a specific base branch (e.g. --base develop)')
-  .option('--base-commit <commit>', 'Compare against a specific commit (e.g. --base-commit HEAD~3)')
+  .option('--base <branch>', 'Review committed + uncommitted + untracked changes since the merge-base with a branch (e.g. --base develop). Takes precedence over the other scope flags')
+  .option('--base-commit <commit>', 'Review committed + uncommitted + untracked changes since a commit (e.g. --base-commit HEAD~3). Takes precedence over the other scope flags')
   .option('--fail-on <level>', 'Fail on issues at or above this level: BLOCKER, CRITICAL, MAJOR, MINOR, INFO (default: CRITICAL)', 'CRITICAL')
   .option('--include <paths>', 'Comma-separated list of file paths glob patterns to include')
   .option('--exclude <paths>', 'Comma-separated list of file paths glob patterns to exclude')
@@ -135,6 +137,8 @@ program
     let baseBranch = null;
     let baseCommit = null;
 
+    // Precedence: --base > --base-commit > other scope flags. The base modes already diff
+    // against the working tree, so they include uncommitted and untracked changes too.
     if (options.base) {
       scanType = 'base-branch';
       baseBranch = options.base;

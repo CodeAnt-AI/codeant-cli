@@ -16,8 +16,11 @@ For installation, authentication, and self-hosted setup, see the [CodeAnt CLI se
 # Login to CodeAnt
 codeant login
 
-# Scan staged files for secrets
+# Scan your changes for secrets
 codeant secrets
+
+# Review your changes
+codeant review
 ```
 
 ## Usage
@@ -56,10 +59,14 @@ codeant secrets [options]
 
 | Option | Description |
 |--------|-------------|
-| `--staged` | Scan only staged files (default) |
-| `--all` | Scan all changed files compared to base branch |
-| `--uncommitted` | Scan all uncommitted changes |
+| `--all` | Scan committed (unpushed) + uncommitted changes, including untracked files (default) |
+| `--committed` | Scan only unpushed commits |
+| `--uncommitted` | Scan staged + unstaged + untracked changes |
+| `--staged` | Scan only staged files |
 | `--last-commit` | Scan files from the last commit |
+| `--last-n-commits <n>` | Scan files from the last n commits (max 5) |
+| `--base <branch>` | Scan committed + uncommitted + untracked changes since the merge-base with `<branch>` |
+| `--base-commit <commit>` | Scan committed + uncommitted + untracked changes since `<commit>` |
 | `--fail-on <level>` | Fail only on HIGH, MEDIUM, or all (default: HIGH) |
 | `--include <patterns>` | Comma-separated glob patterns to include files |
 | `--exclude <patterns>` | Comma-separated glob patterns to exclude files |
@@ -67,11 +74,11 @@ codeant secrets [options]
 **Examples:**
 
 ```bash
-# Scan staged files (default)
+# Scan all changed files (default)
 codeant secrets
 
-# Scan all changed files
-codeant secrets --all
+# Scan only staged files
+codeant secrets --staged
 
 # Scan last commit
 codeant secrets --last-commit
@@ -107,6 +114,46 @@ Use `--include` and `--exclude` with glob patterns to filter files:
 - `HIGH` - High confidence, likely a real secret
 - `MEDIUM` - Medium confidence, may need review
 - `FALSE_POSITIVE` - Detected but likely not a real secret (always ignored)
+
+#### `review`
+
+Run an AI code review on your local changes.
+
+```bash
+codeant review [options]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Review committed (unpushed) + uncommitted changes, including untracked files (default) |
+| `--committed` | Review only unpushed commits |
+| `--uncommitted` | Review staged + unstaged + untracked changes |
+| `--staged` | Review only staged files |
+| `--last-commit` | Review the last commit |
+| `--last-n-commits <n>` | Review the last n commits (max 5) |
+| `--base <branch>` | Review committed + uncommitted + untracked changes since the merge-base with `<branch>` |
+| `--base-commit <commit>` | Review committed + uncommitted + untracked changes since `<commit>` |
+| `--fail-on <level>` | Fail on issues at or above BLOCKER, CRITICAL, MAJOR, MINOR, or INFO (default: CRITICAL) |
+| `--include <patterns>` | Comma-separated glob patterns to include files |
+| `--exclude <patterns>` | Comma-separated glob patterns to exclude files |
+| `--headless` | Print JSON with no spinners (for agents and CI) |
+
+`--base` and `--base-commit` take precedence over the other scope flags. They compare the base against your working tree, so staged, unstaged, and untracked files are reviewed along with commits. Files ignored by `.gitignore` are never reviewed. The same applies to `secrets`.
+
+**Examples:**
+
+```bash
+# Review everything on your branch since it left main, including uncommitted and new files
+codeant review --base main
+
+# Review only uncommitted work
+codeant review --uncommitted
+
+# CI: fail on MAJOR or worse, JSON output
+codeant review --base main --fail-on MAJOR --headless
+```
 
 #### `set-base-url <url>`
 

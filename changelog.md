@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.12] - 13/10/2026
+- `review` / `secrets` with `--base` or `--base-commit` now include staged, unstaged, and untracked files (respecting `.gitignore`), not just commits. Previously `review --all --base main` silently skipped new files
+- With `--base` / `--base-commit`, file content is read from the working tree so it matches the reviewed diff
+- Help text, the README, and the MCP `codeant_review_local` parameters describe what `--base` / `--base-commit` include and that they take precedence over the other scope flags; the README gains a `review` section and corrects the `secrets` scope options
+
 ## [0.5.11] - 05/10/2026
 - `codeant login` shows every status check with the HTTP response, login status, or request error, while masking the token in request diagnostics
 
