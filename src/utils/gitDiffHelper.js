@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { exec, execFile } from 'child_process';
@@ -475,11 +476,29 @@ class GitDiffHelper {
    */
   async _readRepoFile(relPath) {
     const realRoot = await fs.realpath(this.gitRoot);
+    const isInside = p => {
+      const rel = path.relative(realRoot, p);
+      return !!rel && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+    };
     const realPath = await fs.realpath(path.resolve(this.gitRoot, relPath));
-    const rel = path.relative(realRoot, realPath);
-    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
-    if (!(await fs.stat(realPath)).isFile()) return null;
-    return fs.readFile(realPath, 'utf8');
+    if (!isInside(realPath)) return null;
+
+    // Open first and then check what was actually opened, so a symlink swapped in after the
+    // check above can't redirect the read. O_NONBLOCK keeps a FIFO from blocking the open.
+    const { O_RDONLY, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fsConstants;
+    const handle = await fs.open(realPath, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile()) return null;
+      // The opened file must still be the file at this path, and the path must still resolve
+      // inside the repo (a parent directory may have been swapped for a symlink)
+      const nowPath = await fs.realpath(realPath);
+      const now = await fs.stat(nowPath);
+      if (!isInside(nowPath) || now.dev !== opened.dev || now.ino !== opened.ino) return null;
+      return await handle.readFile('utf8');
+    } finally {
+      await handle.close();
+    }
   }
 
   /**
@@ -488,12 +507,21 @@ class GitDiffHelper {
    */
   async _buildUntrackedFileDiff(file) {
     try {
-      const content = await this._readRepoFile(file);
-      if (content === null) return null;
+      let content = await this._readRepoFile(file).catch(() => null);
+      let mode = '100644';
+      if (content === null) {
+        // A symlink we won't follow (it points outside the repo or nowhere): show the link
+        // itself, as git would once it's committed, using its target path and never the
+        // target's contents
+        const absolutePath = path.resolve(this.gitRoot, file);
+        if (!(await fs.lstat(absolutePath)).isSymbolicLink()) return null;
+        content = await fs.readlink(absolutePath);
+        mode = '120000';
+      }
       const lines = content.split('\n');
 
       let patchStr = `diff --git a/${file} b/${file}\n`;
-      patchStr += `new file mode 100644\n`;
+      patchStr += `new file mode ${mode}\n`;
       patchStr += `index 0000000..${this._generateRandomHash()}\n`;
       patchStr += `--- /dev/null\n`;
       patchStr += `+++ b/${file}\n`;

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import GitDiffHelper from '../src/utils/gitDiffHelper.js';
@@ -1202,6 +1203,49 @@ describe('GitDiffHelper integration tests', () => {
       ]) {
         const diffs = await helper.getDiffBasedOnReviewConfig(config);
         expect(leaked(diffs)).toEqual([]);
+      }
+    });
+
+    it('shows untracked symlinks that point outside the repo as links, not their contents', async () => {
+      const target = path.join(outsideDir, 'creds.txt');
+      fs.symlinkSync(target, path.join(testDir, 'src/link-file'));
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: 'HEAD' });
+
+      const diff = diffs.find(d => d.filename_str === 'src/link-file');
+      expect(diff).toBeDefined();
+      expect(diff.edit_type_str).toBe('ADDED');
+      expect(diff.head_file_str).toBe(target);
+      expect(diff.patch_str).toContain('new file mode 120000');
+      expect(leaked(diffs)).toEqual([]);
+    });
+
+    it('does not follow a symlink swapped in after the path check', async () => {
+      writeFile('src/race/data.txt', 'inside\n');
+      fs.writeFileSync(path.join(outsideDir, 'data.txt'), 'OUTSIDE_SECRET\n');
+      const raceDir = path.join(testDir, 'src/race');
+      const realOpen = fsp.open;
+      let swapped = false;
+      // Swap the parent directory for a link to outside the repo between the check and the open
+      const spy = vi.spyOn(fsp, 'open').mockImplementation(async (file, ...rest) => {
+        if (!swapped && String(file).endsWith(path.join('race', 'data.txt'))) {
+          swapped = true;
+          fs.renameSync(raceDir, raceDir + '-orig');
+          fs.symlinkSync(outsideDir, raceDir);
+        }
+        return realOpen(file, ...rest);
+      });
+
+      try {
+        const helper = await createHelper();
+        const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'uncommitted' });
+        expect(swapped).toBe(true);
+        expect(leaked(diffs)).toEqual([]);
+      } finally {
+        spy.mockRestore();
+        fs.rmSync(raceDir, { recursive: true, force: true });
+        fs.rmSync(raceDir + '-orig', { recursive: true, force: true });
       }
     });
 
