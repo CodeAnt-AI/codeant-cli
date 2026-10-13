@@ -460,39 +460,48 @@ class GitDiffHelper {
 
     // Handle untracked files by generating synthetic "new file" diffs since git diff can't see them
     for (const file of expandedUntrackedFiles) {
-      try {
-        const absolutePath = path.resolve(this.gitRoot, file);
-        const content = await fs.readFile(absolutePath, 'utf8');
-        const lines = content.split('\n');
-
-        let patchStr = `diff --git a/${file} b/${file}\n`;
-        patchStr += `new file mode 100644\n`;
-        patchStr += `index 0000000..${this._generateRandomHash()}\n`;
-        patchStr += `--- /dev/null\n`;
-        patchStr += `+++ b/${file}\n`;
-        patchStr += `@@ -0,0 +1,${lines.length} @@\n`;
-        lines.forEach(line => { patchStr += `+${line}\n`; });
-
-        diffs.push({
-          base_file_str: '',
-          head_file_str: content,
-          patch_str: patchStr,
-          filename_str: file,
-          edit_type_str: 'ADDED',
-          old_filename_str: null,
-          num_plus_lines_str: String(lines.length),
-          num_minus_lines_str: '0',
-          tokens_str: String(content.split(/\s+/).length),
-          start_line_str: '1',
-          end_line_str: String(lines.length),
-        });
-      } catch (error) {
-        // Skip files that can't be read
-      }
+      const diff = await this._buildUntrackedFileDiff(file);
+      if (diff) diffs.push(diff);
     }
 
     this.baseCommit = originalBaseCommit;
     return diffs;
+  }
+
+  /**
+   * Build a synthetic "new file" diff for an untracked file, which git diff can't see.
+   * Returns null if the file can't be read.
+   */
+  async _buildUntrackedFileDiff(file) {
+    try {
+      const absolutePath = path.resolve(this.gitRoot, file);
+      const content = await fs.readFile(absolutePath, 'utf8');
+      const lines = content.split('\n');
+
+      let patchStr = `diff --git a/${file} b/${file}\n`;
+      patchStr += `new file mode 100644\n`;
+      patchStr += `index 0000000..${this._generateRandomHash()}\n`;
+      patchStr += `--- /dev/null\n`;
+      patchStr += `+++ b/${file}\n`;
+      patchStr += `@@ -0,0 +1,${lines.length} @@\n`;
+      lines.forEach(line => { patchStr += `+${line}\n`; });
+
+      return {
+        base_file_str: '',
+        head_file_str: content,
+        patch_str: patchStr,
+        filename_str: file,
+        edit_type_str: 'ADDED',
+        old_filename_str: null,
+        num_plus_lines_str: String(lines.length),
+        num_minus_lines_str: '0',
+        tokens_str: String(content.split(/\s+/).length),
+        start_line_str: '1',
+        end_line_str: String(lines.length),
+      };
+    } catch (error) {
+      return null;
+    }
   }
 
   async _getStagedChanges() {
@@ -525,7 +534,8 @@ class GitDiffHelper {
 
   /**
    * Get diff against a specific base branch.
-   * Finds the merge-base between the given branch and HEAD, then diffs from there.
+   * Finds the merge-base between the given branch and HEAD, then diffs it against the
+   * working tree (committed + staged + unstaged + untracked).
    */
   async _getBaseBranchDiff(branch) {
     if (!this.gitRoot) {
@@ -561,32 +571,12 @@ class GitDiffHelper {
       base = resolvedRef;
     }
 
-    const { stdout: changedFiles } = await execAsync(
-      `git diff --name-only ${base} HEAD`,
-      { cwd: this.gitRoot }
-    );
-
-    const files = changedFiles.split('\n').map(f => f.trim()).filter(Boolean);
-    if (files.length === 0) return [];
-
-    const originalBaseCommit = this.baseCommit;
-    try {
-      this.baseCommit = base;
-      this._headRef = 'HEAD';
-
-      const diffs = await Promise.all(
-        files.map(fp => this.getDiffInfoForFile(fp))
-      );
-      return diffs.flat();
-    } finally {
-      this.baseCommit = originalBaseCommit;
-      this._headRef = null;
-    }
+    return this._getWorkingTreeDiffAgainst(base);
   }
 
   /**
    * Get diff against a specific base commit.
-   * Diffs from the given commit to HEAD.
+   * Diffs from the given commit to the working tree (committed + staged + unstaged + untracked).
    */
   async _getBaseCommitDiff(commit) {
     if (!this.gitRoot) {
@@ -605,23 +595,43 @@ class GitDiffHelper {
       throw new Error(`Could not resolve commit: ${commit}`);
     }
 
+    return this._getWorkingTreeDiffAgainst(resolvedCommit);
+  }
+
+  /**
+   * Diff a base commit against the working tree: commits since base, staged and unstaged
+   * changes (including staged new files), plus untracked files not ignored by .gitignore.
+   * Content is read from disk so it matches the patch, which getFileDiff also takes against
+   * the working tree.
+   */
+  async _getWorkingTreeDiffAgainst(base) {
+    // No HEAD argument: compares base to the working tree, which covers tracked files that
+    // were committed, staged or edited since base
     const { stdout: changedFiles } = await execAsync(
-      `git diff --name-only ${resolvedCommit} HEAD`,
+      `git diff --name-only ${base}`,
+      { cwd: this.gitRoot }
+    );
+    const { stdout: untrackedStr } = await execAsync(
+      'git ls-files --others --exclude-standard',
       { cwd: this.gitRoot }
     );
 
     const files = changedFiles.split('\n').map(f => f.trim()).filter(Boolean);
-    if (files.length === 0) return [];
+    const untrackedFiles = untrackedStr.split('\n').map(f => f.trim()).filter(Boolean);
+    if (files.length === 0 && untrackedFiles.length === 0) return [];
 
     const originalBaseCommit = this.baseCommit;
     try {
-      this.baseCommit = resolvedCommit;
-      this._headRef = 'HEAD';
+      this.baseCommit = base;
+      this._headRef = null;
 
       const diffs = await Promise.all(
         files.map(fp => this.getDiffInfoForFile(fp))
       );
-      return diffs.flat();
+      const untrackedDiffs = await Promise.all(
+        untrackedFiles.map(fp => this._buildUntrackedFileDiff(fp))
+      );
+      return [...diffs.flat(), ...untrackedDiffs.filter(Boolean)];
     } finally {
       this.baseCommit = originalBaseCommit;
       this._headRef = null;
@@ -762,35 +772,8 @@ class GitDiffHelper {
 
       // Handle untracked files with synthetic diffs
       for (const file of expandedUntrackedFiles) {
-        try {
-          const absolutePath = path.resolve(this.gitRoot, file);
-          const content = await fs.readFile(absolutePath, 'utf8');
-          const lines = content.split('\n');
-
-          let patchStr = `diff --git a/${file} b/${file}\n`;
-          patchStr += `new file mode 100644\n`;
-          patchStr += `index 0000000..${this._generateRandomHash()}\n`;
-          patchStr += `--- /dev/null\n`;
-          patchStr += `+++ b/${file}\n`;
-          patchStr += `@@ -0,0 +1,${lines.length} @@\n`;
-          lines.forEach(line => { patchStr += `+${line}\n`; });
-
-          diffs.push({
-            base_file_str: '',
-            head_file_str: content,
-            patch_str: patchStr,
-            filename_str: file,
-            edit_type_str: 'ADDED',
-            old_filename_str: null,
-            num_plus_lines_str: String(lines.length),
-            num_minus_lines_str: '0',
-            tokens_str: String(content.split(/\s+/).length),
-            start_line_str: '1',
-            end_line_str: String(lines.length),
-          });
-        } catch (err) {
-          // skip
-        }
+        const diff = await this._buildUntrackedFileDiff(file);
+        if (diff) diffs.push(diff);
       }
     } finally {
       this.baseCommit = originalBaseCommit;

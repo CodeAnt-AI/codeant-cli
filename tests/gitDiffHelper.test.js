@@ -612,9 +612,12 @@ describe('GitDiffHelper integration tests', () => {
     });
 
     afterEach(() => {
+      // Drop staged/untracked leftovers so they don't follow us back to startBranch
+      git('reset HEAD -- .');
+      git('checkout -- .');
+      git('clean -fd');
       const current = git('rev-parse --abbrev-ref HEAD');
       if (current !== startBranch) {
-        git('checkout -- .');
         git(`checkout ${startBranch}`);
       }
     });
@@ -654,7 +657,7 @@ describe('GitDiffHelper integration tests', () => {
       ).rejects.toThrow('Could not resolve branch');
     });
 
-    it('reads file content from HEAD', async () => {
+    it('reviews the working-tree version, with patch matching content', async () => {
       baseBranchName = 'base-content-' + Date.now();
       git(`checkout -b ${baseBranchName}`);
       writeFile('src/index.js', 'console.log("base version");\n');
@@ -677,9 +680,91 @@ describe('GitDiffHelper integration tests', () => {
 
       const diff = diffs.find(d => d.filename_str === 'src/index.js');
       expect(diff).toBeDefined();
-      expect(diff.head_file_str).toContain('feature version');
-      expect(diff.head_file_str).not.toContain('working tree version');
+      expect(diff.head_file_str).toContain('working tree version');
+      expect(diff.patch_str).toContain('+console.log("working tree version");');
       expect(diff.base_file_str).toContain('base version');
+    });
+
+    it('includes staged new, unstaged, and untracked files along with commits', async () => {
+      baseBranchName = 'base-wt-' + Date.now();
+      git(`checkout -b ${baseBranchName}`);
+      git('checkout -b feature-wt');
+
+      // Committed on the feature branch
+      writeFile('src/wt-committed.js', 'committed\n');
+      git('add src/wt-committed.js');
+      git('commit -m "wt committed"');
+
+      // Changed only on the base branch after the fork point
+      git(`checkout ${baseBranchName}`);
+      writeFile('src/wt-base-only.js', 'base only\n');
+      git('add src/wt-base-only.js');
+      git('commit -m "base only"');
+      git('checkout feature-wt');
+
+      // Staged new file, unstaged edit to a tracked file, untracked file
+      writeFile('src/wt-staged-new.js', 'staged new\n');
+      git('add src/wt-staged-new.js');
+      writeFile('src/utils.js', 'export function add(a, b) { return a + b + 0; }\n');
+      writeFile('src/wt-untracked/nested.js', 'untracked\n');
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({
+        type: 'base-branch',
+        baseBranch: baseBranchName,
+      });
+
+      const filenames = diffs.map(d => d.filename_str);
+      expect(filenames).toContain('src/wt-committed.js');
+      expect(filenames).toContain('src/wt-staged-new.js');
+      expect(filenames).toContain('src/utils.js');
+      expect(filenames).toContain('src/wt-untracked/nested.js');
+      expect(filenames).not.toContain('src/wt-base-only.js');
+
+      const stagedNew = diffs.find(d => d.filename_str === 'src/wt-staged-new.js');
+      expect(stagedNew.edit_type_str).toBe('ADDED');
+      expect(stagedNew.head_file_str).toBe('staged new\n');
+
+      const untracked = diffs.find(d => d.filename_str === 'src/wt-untracked/nested.js');
+      expect(untracked.edit_type_str).toBe('ADDED');
+      expect(untracked.head_file_str).toBe('untracked\n');
+    });
+
+    it('excludes untracked files ignored by .gitignore', async () => {
+      baseBranchName = 'base-ignore-' + Date.now();
+      git(`checkout -b ${baseBranchName}`);
+
+      writeFile('.gitignore', '*.secret\n');
+      writeFile('src/keys.secret', 'ignored\n');
+      writeFile('src/visible.js', 'visible\n');
+
+      try {
+        const helper = await createHelper();
+        const diffs = await helper.getDiffBasedOnReviewConfig({
+          type: 'base-branch',
+          baseBranch: baseBranchName,
+        });
+
+        const filenames = diffs.map(d => d.filename_str);
+        expect(filenames).toContain('src/visible.js');
+        expect(filenames).not.toContain('src/keys.secret');
+      } finally {
+        // git clean -fd leaves ignored files behind, so remove it explicitly
+        fs.rmSync(path.join(testDir, 'src/keys.secret'), { force: true });
+      }
+    });
+
+    it('returns empty when nothing changed since the base', async () => {
+      baseBranchName = 'base-empty-' + Date.now();
+      git(`checkout -b ${baseBranchName}`);
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({
+        type: 'base-branch',
+        baseBranch: baseBranchName,
+      });
+
+      expect(diffs).toEqual([]);
     });
   });
 
@@ -738,6 +823,34 @@ describe('GitDiffHelper integration tests', () => {
       const filenames = diffs.map(d => d.filename_str);
       expect(filenames).toContain('src/hn2.js');
       expect(filenames).not.toContain('src/hn1.js');
+    });
+
+    it('includes staged new and untracked files', async () => {
+      writeFile('src/bcw1.js', 'bcw1\n');
+      git('add src/bcw1.js');
+      git('commit -m "bcw1"');
+
+      const baseHash = git('rev-parse HEAD');
+
+      writeFile('src/bcw2.js', 'bcw2\n');
+      git('add src/bcw2.js');
+      git('commit -m "bcw2"');
+
+      writeFile('src/bcw-staged.js', 'staged\n');
+      git('add src/bcw-staged.js');
+      writeFile('src/bcw-untracked.js', 'untracked\n');
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({
+        type: 'base-commit',
+        baseCommit: baseHash,
+      });
+
+      const filenames = diffs.map(d => d.filename_str);
+      expect(filenames).toContain('src/bcw2.js');
+      expect(filenames).toContain('src/bcw-staged.js');
+      expect(filenames).toContain('src/bcw-untracked.js');
+      expect(filenames).not.toContain('src/bcw1.js');
     });
 
     it('throws for invalid commit', async () => {

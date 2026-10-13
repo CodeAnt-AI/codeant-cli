@@ -639,8 +639,8 @@ export function createMcpServer() {
           .optional()
           .describe('Review scope. Default "uncommitted".'),
         lastNCommits: z.number().int().positive().max(5).optional(),
-        baseBranch: z.string().optional(),
-        baseCommit: z.string().optional(),
+        baseBranch: z.string().optional().describe('Branch for scope "base-branch". Reviews committed, uncommitted and untracked changes since the merge-base with this branch.'),
+        baseCommit: z.string().optional().describe('Commit for scope "base-commit". Reviews committed, uncommitted and untracked changes since this commit.'),
         include: z.array(z.string()).optional().describe('Glob patterns to include.'),
         exclude: z.array(z.string()).optional().describe('Glob patterns to exclude.'),
       },
