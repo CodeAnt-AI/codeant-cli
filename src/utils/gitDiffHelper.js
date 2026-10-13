@@ -1,9 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { promisify } from 'util';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Expand untracked paths from `git status --porcelain`.
@@ -469,13 +470,26 @@ class GitDiffHelper {
   }
 
   /**
+   * Read a working-tree file. Returns null if it resolves outside the repository (a symlink
+   * pointing elsewhere) or isn't a regular file, so those contents are never uploaded.
+   */
+  async _readRepoFile(relPath) {
+    const realRoot = await fs.realpath(this.gitRoot);
+    const realPath = await fs.realpath(path.resolve(this.gitRoot, relPath));
+    const rel = path.relative(realRoot, realPath);
+    if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) return null;
+    if (!(await fs.stat(realPath)).isFile()) return null;
+    return fs.readFile(realPath, 'utf8');
+  }
+
+  /**
    * Build a synthetic "new file" diff for an untracked file, which git diff can't see.
    * Returns null if the file can't be read.
    */
   async _buildUntrackedFileDiff(file) {
     try {
-      const absolutePath = path.resolve(this.gitRoot, file);
-      const content = await fs.readFile(absolutePath, 'utf8');
+      const content = await this._readRepoFile(file);
+      if (content === null) return null;
       const lines = content.split('\n');
 
       let patchStr = `diff --git a/${file} b/${file}\n`;
@@ -549,8 +563,7 @@ class GitDiffHelper {
     let resolvedRef;
     for (const candidate of [branch, `origin/${branch}`]) {
       try {
-        const { stdout } = await execAsync(`git rev-parse ${candidate}`, { cwd: this.gitRoot });
-        resolvedRef = stdout.trim();
+        resolvedRef = await this._resolveCommitSha(candidate);
         break;
       } catch (err) {
         // try next
@@ -589,13 +602,27 @@ class GitDiffHelper {
     // Resolve the commit ref (supports HEAD~3, sha, tag, etc.)
     let resolvedCommit;
     try {
-      const { stdout } = await execAsync(`git rev-parse ${commit}`, { cwd: this.gitRoot });
-      resolvedCommit = stdout.trim();
+      resolvedCommit = await this._resolveCommitSha(commit);
     } catch (err) {
       throw new Error(`Could not resolve commit: ${commit}`);
     }
 
     return this._getWorkingTreeDiffAgainst(resolvedCommit);
+  }
+
+  /**
+   * Resolve a user-supplied ref (from the CLI or MCP) to a commit SHA without going through a
+   * shell, so later git commands only ever see the SHA. Throws if it doesn't name a commit.
+   */
+  async _resolveCommitSha(ref) {
+    // A leading "-" would be parsed as a git option (e.g. --output=<file>)
+    if (ref.startsWith('-')) throw new Error(`Invalid ref: ${ref}`);
+    const { stdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`],
+      { cwd: this.gitRoot }
+    );
+    return stdout.trim();
   }
 
   /**
@@ -1011,8 +1038,8 @@ class GitDiffHelper {
     } catch (err) {
       // Handle untracked files
       try {
-        const absoluteFilePath = path.resolve(this.gitRoot, filePath);
-        const headFileStr = await fs.readFile(absoluteFilePath, 'utf8');
+        const headFileStr = await this._readRepoFile(filePath);
+        if (headFileStr === null) throw new Error('Not a regular file inside the repository');
         const lines = headFileStr.split('\n');
 
         let patchStr = `diff --git a/${filePath} b/${filePath}\n`;
@@ -1069,9 +1096,9 @@ class GitDiffHelper {
         { cwd: this.gitRoot }
       ).then(r => r.stdout).catch(() => '');
     } else {
-      headFileStr = await fs.readFile(
-        path.join(this.gitRoot, filePath), 'utf8'
-      ).catch(() => '');
+      headFileStr = await this._readRepoFile(filePath)
+        .then(content => content ?? '')
+        .catch(() => '');
     }
 
     // Get patch
