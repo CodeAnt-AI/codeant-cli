@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.13] - 13/10/2026
+- Security: `--base` / `--base-commit` values (including from the MCP `codeant_review_local` tool) are resolved without a shell, and option-like values are rejected, so they can no longer run commands or pass options to git
+- Security: symlinks that point outside the repository, and files reached through them, are no longer read into review or secrets payloads. In 0.5.12, `--base` / `--base-commit` sent a committed symlink's target contents
+
 ## [0.5.12] - 13/10/2026
 - `review` / `secrets` with `--base` or `--base-commit` now include staged, unstaged, and untracked files (respecting `.gitignore`), not just commits. Previously `review --all --base main` silently skipped new files
 - With `--base` / `--base-commit`, file content is read from the working tree so it matches the reviewed diff

@@ -1,9 +1,11 @@
 import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { promisify } from 'util';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Expand untracked paths from `git status --porcelain`.
@@ -469,17 +471,57 @@ class GitDiffHelper {
   }
 
   /**
+   * Read a working-tree file. Returns null if it resolves outside the repository (a symlink
+   * pointing elsewhere) or isn't a regular file, so those contents are never uploaded.
+   */
+  async _readRepoFile(relPath) {
+    const realRoot = await fs.realpath(this.gitRoot);
+    const isInside = p => {
+      const rel = path.relative(realRoot, p);
+      return !!rel && rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel);
+    };
+    const realPath = await fs.realpath(path.resolve(this.gitRoot, relPath));
+    if (!isInside(realPath)) return null;
+
+    // Open first and then check what was actually opened, so a symlink swapped in after the
+    // check above can't redirect the read. O_NONBLOCK keeps a FIFO from blocking the open.
+    const { O_RDONLY, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fsConstants;
+    const handle = await fs.open(realPath, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile()) return null;
+      // The opened file must still be the file at this path, and the path must still resolve
+      // inside the repo (a parent directory may have been swapped for a symlink)
+      const nowPath = await fs.realpath(realPath);
+      const now = await fs.stat(nowPath);
+      if (!isInside(nowPath) || now.dev !== opened.dev || now.ino !== opened.ino) return null;
+      return await handle.readFile('utf8');
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /**
    * Build a synthetic "new file" diff for an untracked file, which git diff can't see.
    * Returns null if the file can't be read.
    */
   async _buildUntrackedFileDiff(file) {
     try {
-      const absolutePath = path.resolve(this.gitRoot, file);
-      const content = await fs.readFile(absolutePath, 'utf8');
+      let content = await this._readRepoFile(file).catch(() => null);
+      let mode = '100644';
+      if (content === null) {
+        // A symlink we won't follow (it points outside the repo or nowhere): show the link
+        // itself, as git would once it's committed, using its target path and never the
+        // target's contents
+        const absolutePath = path.resolve(this.gitRoot, file);
+        if (!(await fs.lstat(absolutePath)).isSymbolicLink()) return null;
+        content = await fs.readlink(absolutePath);
+        mode = '120000';
+      }
       const lines = content.split('\n');
 
       let patchStr = `diff --git a/${file} b/${file}\n`;
-      patchStr += `new file mode 100644\n`;
+      patchStr += `new file mode ${mode}\n`;
       patchStr += `index 0000000..${this._generateRandomHash()}\n`;
       patchStr += `--- /dev/null\n`;
       patchStr += `+++ b/${file}\n`;
@@ -549,8 +591,7 @@ class GitDiffHelper {
     let resolvedRef;
     for (const candidate of [branch, `origin/${branch}`]) {
       try {
-        const { stdout } = await execAsync(`git rev-parse ${candidate}`, { cwd: this.gitRoot });
-        resolvedRef = stdout.trim();
+        resolvedRef = await this._resolveCommitSha(candidate);
         break;
       } catch (err) {
         // try next
@@ -589,13 +630,27 @@ class GitDiffHelper {
     // Resolve the commit ref (supports HEAD~3, sha, tag, etc.)
     let resolvedCommit;
     try {
-      const { stdout } = await execAsync(`git rev-parse ${commit}`, { cwd: this.gitRoot });
-      resolvedCommit = stdout.trim();
+      resolvedCommit = await this._resolveCommitSha(commit);
     } catch (err) {
       throw new Error(`Could not resolve commit: ${commit}`);
     }
 
     return this._getWorkingTreeDiffAgainst(resolvedCommit);
+  }
+
+  /**
+   * Resolve a user-supplied ref (from the CLI or MCP) to a commit SHA without going through a
+   * shell, so later git commands only ever see the SHA. Throws if it doesn't name a commit.
+   */
+  async _resolveCommitSha(ref) {
+    // A leading "-" would be parsed as a git option (e.g. --output=<file>)
+    if (ref.startsWith('-')) throw new Error(`Invalid ref: ${ref}`);
+    const { stdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`],
+      { cwd: this.gitRoot }
+    );
+    return stdout.trim();
   }
 
   /**
@@ -1011,8 +1066,8 @@ class GitDiffHelper {
     } catch (err) {
       // Handle untracked files
       try {
-        const absoluteFilePath = path.resolve(this.gitRoot, filePath);
-        const headFileStr = await fs.readFile(absoluteFilePath, 'utf8');
+        const headFileStr = await this._readRepoFile(filePath);
+        if (headFileStr === null) throw new Error('Not a regular file inside the repository');
         const lines = headFileStr.split('\n');
 
         let patchStr = `diff --git a/${filePath} b/${filePath}\n`;
@@ -1069,9 +1124,9 @@ class GitDiffHelper {
         { cwd: this.gitRoot }
       ).then(r => r.stdout).catch(() => '');
     } else {
-      headFileStr = await fs.readFile(
-        path.join(this.gitRoot, filePath), 'utf8'
-      ).catch(() => '');
+      headFileStr = await this._readRepoFile(filePath)
+        .then(content => content ?? '')
+        .catch(() => '');
     }
 
     // Get patch

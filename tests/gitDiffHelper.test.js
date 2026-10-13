@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import GitDiffHelper from '../src/utils/gitDiffHelper.js';
@@ -1132,6 +1133,145 @@ describe('GitDiffHelper integration tests', () => {
       await expect(
         helper.getDiffBasedOnReviewConfig({ type: 'staged-only' })
       ).rejects.toThrow();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // SECURITY: user-supplied refs and symlinks
+  // ─────────────────────────────────────────────────────
+  describe('security', () => {
+    let outsideDir;
+    let startBranch;
+
+    beforeEach(() => {
+      startBranch = git('rev-parse --abbrev-ref HEAD');
+      git('checkout -- .');
+      git('reset HEAD -- .');
+      git('clean -fd');
+      outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codeant-outside-'));
+      fs.writeFileSync(path.join(outsideDir, 'creds.txt'), 'OUTSIDE_SECRET\n');
+      fs.mkdirSync(path.join(outsideDir, 'dir'));
+      fs.writeFileSync(path.join(outsideDir, 'dir', 'inner.txt'), 'OUTSIDE_DIR_SECRET\n');
+    });
+
+    afterEach(() => {
+      git('reset HEAD -- .');
+      git('checkout -- .');
+      git('clean -fd');
+      if (git('rev-parse --abbrev-ref HEAD') !== startBranch) {
+        git(`checkout ${startBranch}`);
+      }
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    });
+
+    const leaked = diffs => diffs.filter(d => /OUTSIDE_(DIR_)?SECRET/.test(d.head_file_str + d.patch_str));
+
+    it('does not run shell metacharacters in a base branch or commit', async () => {
+      const marker = path.join(outsideDir, 'pwned');
+      const helper = await createHelper();
+
+      await expect(
+        helper.getDiffBasedOnReviewConfig({ type: 'base-branch', baseBranch: `HEAD; touch ${marker}` })
+      ).rejects.toThrow('Could not resolve branch');
+      await expect(
+        helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: `HEAD$(touch ${marker})` })
+      ).rejects.toThrow('Could not resolve commit');
+
+      expect(fs.existsSync(marker)).toBe(false);
+    });
+
+    it('rejects option-like refs instead of passing them to git', async () => {
+      const written = path.join(outsideDir, 'written.txt');
+      const helper = await createHelper();
+
+      await expect(
+        helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: `--output=${written}` })
+      ).rejects.toThrow('Could not resolve commit');
+
+      expect(fs.existsSync(written)).toBe(false);
+    });
+
+    it('does not read untracked symlinks that point outside the repo', async () => {
+      fs.symlinkSync(path.join(outsideDir, 'creds.txt'), path.join(testDir, 'src/link-file'));
+      fs.symlinkSync(path.join(outsideDir, 'dir'), path.join(testDir, 'src/link-dir'));
+
+      const helper = await createHelper();
+      for (const config of [
+        { type: 'base-commit', baseCommit: 'HEAD' },
+        { type: 'uncommitted' },
+        { type: 'all' },
+      ]) {
+        const diffs = await helper.getDiffBasedOnReviewConfig(config);
+        expect(leaked(diffs)).toEqual([]);
+      }
+    });
+
+    it('shows untracked symlinks that point outside the repo as links, not their contents', async () => {
+      const target = path.join(outsideDir, 'creds.txt');
+      fs.symlinkSync(target, path.join(testDir, 'src/link-file'));
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: 'HEAD' });
+
+      const diff = diffs.find(d => d.filename_str === 'src/link-file');
+      expect(diff).toBeDefined();
+      expect(diff.edit_type_str).toBe('ADDED');
+      expect(diff.head_file_str).toBe(target);
+      expect(diff.patch_str).toContain('new file mode 120000');
+      expect(leaked(diffs)).toEqual([]);
+    });
+
+    it('does not follow a symlink swapped in after the path check', async () => {
+      writeFile('src/race/data.txt', 'inside\n');
+      fs.writeFileSync(path.join(outsideDir, 'data.txt'), 'OUTSIDE_SECRET\n');
+      const raceDir = path.join(testDir, 'src/race');
+      const realOpen = fsp.open;
+      let swapped = false;
+      // Swap the parent directory for a link to outside the repo between the check and the open
+      const spy = vi.spyOn(fsp, 'open').mockImplementation(async (file, ...rest) => {
+        if (!swapped && String(file).endsWith(path.join('race', 'data.txt'))) {
+          swapped = true;
+          fs.renameSync(raceDir, raceDir + '-orig');
+          fs.symlinkSync(outsideDir, raceDir);
+        }
+        return realOpen(file, ...rest);
+      });
+
+      try {
+        const helper = await createHelper();
+        const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'uncommitted' });
+        expect(swapped).toBe(true);
+        expect(leaked(diffs)).toEqual([]);
+      } finally {
+        spy.mockRestore();
+        fs.rmSync(raceDir, { recursive: true, force: true });
+        fs.rmSync(raceDir + '-orig', { recursive: true, force: true });
+      }
+    });
+
+    it('does not read committed symlinks that point outside the repo', async () => {
+      const baseHash = git('rev-parse HEAD');
+      fs.symlinkSync(path.join(outsideDir, 'creds.txt'), path.join(testDir, 'src/committed-link'));
+      git('checkout -b security-committed-link');
+      git('add src/committed-link');
+      git('commit -m "committed link"');
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: baseHash });
+
+      expect(diffs.map(d => d.filename_str)).toContain('src/committed-link');
+      expect(leaked(diffs)).toEqual([]);
+    });
+
+    it('still reads symlinks that stay inside the repo', async () => {
+      fs.symlinkSync('index.js', path.join(testDir, 'src/inside-link.js'));
+
+      const helper = await createHelper();
+      const diffs = await helper.getDiffBasedOnReviewConfig({ type: 'base-commit', baseCommit: 'HEAD' });
+
+      const diff = diffs.find(d => d.filename_str === 'src/inside-link.js');
+      expect(diff).toBeDefined();
+      expect(diff.head_file_str).toBe(readFile('src/index.js'));
     });
   });
 });
