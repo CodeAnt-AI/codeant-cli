@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { minimatch } from 'minimatch';
 
-const MAX_REVIEW_FILES = 15;
+const MAX_REVIEW_FILES = 40;
 const MAX_FILE_LINES = 5000;
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
 
