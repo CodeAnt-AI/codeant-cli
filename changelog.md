@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.5.14] - 15/10/2026
+- Increased file limits on code review to 40 files
+
 ## [0.5.13] - 13/10/2026
 - Security: `--base` / `--base-commit` values (including from the MCP `codeant_review_local` tool) are resolved without a shell, and option-like values are rejected, so they can no longer run commands or pass options to git
 - Security: symlinks that point outside the repository, and files reached through them, are no longer read into review or secrets payloads. In 0.5.12, `--base` / `--base-commit` sent a committed symlink's target contents
