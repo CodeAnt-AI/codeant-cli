@@ -295,6 +295,8 @@ codeant findings repo --repo acme/backend --types secrets \
 codeant scans results --repo acme/backend --types secrets --secrets-scope all
 ```
 
+Latest history results retain the last completed assessment while a newer run is pending or failed; the run status still describes the latest job. An explicit `--history-run` retrieves only that run.
+
 `--secrets-scope` accepts `current` (default), `history`, or `all`. `--history-run` selects one immutable run identity; otherwise the latest history run is read. Status values are `not_started`, `queued`, `running`, `awaiting_verification`, `completed`, `failed`, and `disabled`. Failed and disabled runs are terminal outcomes, not clean scans. Jobs stalled for over one hour are reported as failed. When available, `last_completed_run_id` identifies the previous successful run. Results from incomplete runs must not be treated as a complete assessment.
 
 History findings expose `metadata.commit`, `branches`, `tags`, `scanned_at`, `only_in_history`, and native `verification_status`. Branches/tags contain the commit at scan time; they do not identify where it originated. `only_in_history` compares the secret identity against the selected, unfiltered snapshot, including findings dismissed or marked false positive. It is `null` when the baseline is unavailable. History-only retrieval works without a snapshot scan; in that case `scan` is `null`.
@@ -333,7 +335,7 @@ A vulnerable package can now include:
 }
 ```
 
-Use the direct introducer and manifest to select the dependency to edit. `fix_version` fixes the vulnerable package; it does not promise a safe version of its direct introducer. There can be multiple introducers and manifest locations. Lockfiles are null when unknown or generated rather than committed. Path status distinguishes `pending`, `resolved`, `partial`, and `unavailable`; a resolved empty list differs from unavailable evidence. Existing scans are readable, but missing evidence requires a new scan.
+Use the direct introducer and manifest to select the dependency to edit. `fix_version` fixes the vulnerable package; it does not promise a safe version of its direct introducer. There can be multiple introducers and manifest locations. Very large path payloads are bounded; `dependency_paths_truncated: true` and a `partial` path status identify incomplete public evidence. Lockfiles are null when unknown or generated rather than committed. Path status distinguishes `pending`, `resolved`, `partial`, and `unavailable`; a resolved empty list differs from unavailable evidence. Existing scans are readable, but missing evidence requires a new scan.
 
 Schema 1.1 adds `category_status` (including independent SCA `dependency_paths_status`), optional `history_run`, and category metadata. SCA IDs now include package/version/manifest context; history IDs include commit and secret identity. Existing current-secret IDs are unchanged. JSON and field projection preserve metadata; SARIF includes it in result properties, and CSV adds JSON-encoded `package` and `metadata` columns.
 
@@ -350,3 +352,5 @@ npm test -- tests/scans/history-secrets.test.js
 ```
 
 This suite reads the specified fixture; it does not trigger scans or modify settings.
+
+Scan-start aliases `anti_patterns` and `complex_functions` select the `antipatterns` scanner, which produces both result categories.

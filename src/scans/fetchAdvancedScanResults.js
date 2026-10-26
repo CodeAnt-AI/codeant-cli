@@ -291,6 +291,7 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
   try {
     if (resultType === ADVANCED_RESULT_TYPES.SECRETS && opts.secretsScope && opts.secretsScope !== 'current') {
       const history = await getHistoryResults(repo, commitId, opts);
+      const historyRun = { ...history.run, results_run_id: history.results_run_id, results_status: history.results_status };
       const occurrences = new Map();
       const historyIssues = (history.findings || []).map((item) => {
         const issue = normalizeAdvancedIssue({ ...item, finding_scope: 'history' }, resultType);
@@ -300,20 +301,25 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
         return { ...issue, occurrence_index: occurrenceIndex };
       });
       if (opts.secretsScope === 'history') {
-        return { success: true, issues: historyIssues, status: history.status, historyRun: history.run };
+        return { success: true, issues: historyIssues, status: history.status, historyRun };
       }
       const current = await fetchAdvancedScanResults(repo, commitId, resultType, { ...opts, secretsScope: 'current' });
       if (!current.success) return current;
       const identity = (issue) => JSON.stringify([issue.file_path, issue.hashed_secret, issue.type || issue.secret_type]);
-      const byIdentity = new Map(current.issues.filter((issue) => issue.hashed_secret).map((issue) => [identity(issue), issue]));
+      const byIdentity = new Map();
+      for (const issue of current.issues.filter((issue) => issue.hashed_secret)) {
+        const key = identity(issue);
+        if (!byIdentity.has(key)) byIdentity.set(key, []);
+        byIdentity.get(key).push(issue);
+      }
       const remaining = [];
       for (const issue of historyIssues) {
-        const match = byIdentity.get(identity(issue));
-        if (match) {
-          (match.history_occurrences ??= []).push({ commit: issue.commit, file_path: issue.file_path, line_number: issue.line_number, branches: issue.branches, tags: issue.tags, verification_status: issue.verification_status, scanned_at: issue.scanned_at });
+        const matches = byIdentity.get(identity(issue));
+        if (matches) {
+          for (const match of matches) (match.history_occurrences ??= []).push({ commit: issue.commit, file_path: issue.file_path, line_number: issue.line_number, branches: issue.branches, tags: issue.tags, verification_status: issue.verification_status, scanned_at: issue.scanned_at });
         } else remaining.push(issue);
       }
-      return { ...current, issues: [...current.issues, ...remaining], historyRun: history.run };
+      return { ...current, issues: [...current.issues, ...remaining], historyRun };
     }
     const response = await fetchApi('/extension/scans2/fetch-advanced-results', 'POST', {
       repo,

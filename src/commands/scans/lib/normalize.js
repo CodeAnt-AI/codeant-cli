@@ -94,7 +94,7 @@ export function normalizeIssue(issue, category) {
     metadata.fix_version = issue.fix_version || issue.fix_details?.fixed_version || issue.fixed_version || issue.first_patched_version || null;
     metadata.fix_available = issue.fix_available ?? issue.fix_details?.fix_available ?? !!metadata.fix_version;
     if (issue.fix_details?.vulnerable_version_range !== undefined) metadata.vulnerable_version_range = issue.fix_details.vulnerable_version_range;
-    for (const key of ['dependency_paths', 'dependency_paths_status', 'package_location', 'vulnerable_version_range', 'vulnerable_range', 'dependency_relationship']) {
+    for (const key of ['dependency_paths', 'dependency_paths_status', 'dependency_paths_truncated', 'package_location', 'vulnerable_version_range', 'vulnerable_range', 'dependency_relationship']) {
       if (issue[key] !== undefined) metadata[key] = issue[key];
     }
   } else if (category === 'duplicate_code') {

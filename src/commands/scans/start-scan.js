@@ -55,7 +55,8 @@ async function resolveRemoteCommit(branch) {
 }
 
 export async function runStartScan({ repo, branch, commit, include, exclude, types, json = false, returnResult = false } = {}) {
-  const scanTypes = types ? types.split(',').map((value) => value.trim()).filter(Boolean) : undefined;
+  const aliases = { anti_patterns: 'antipatterns', complex_functions: 'antipatterns' };
+  const scanTypes = types ? [...new Set(types.split(',').map((value) => value.trim()).filter(Boolean).map((value) => aliases[value] || value))] : undefined;
   if (types !== undefined && (!scanTypes?.length || scanTypes.some((value) => !SCAN_TYPES.has(value)))) throw new Error('Invalid --types for scan start');
   const resolvedRepo = repo || detectRepoName();
   if (!resolvedRepo) {

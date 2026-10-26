@@ -5,45 +5,45 @@ import path from 'path';
 import { runAsync, REPO, TIMEOUT } from './helpers.js';
 
 // ── Shared setup ──────────────────────────────────────────────────────────────
-let tmpDir;
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codeant-results-'));
 let r = {};   // all pre-fetched results keyed by label
 
+const sarifPath = path.join(tmpDir, 'out.sarif');
+const jsonPath  = path.join(tmpDir, 'out.json');
+
+// Exercise all commands without turning a functional check into a burst load
+// test: each CLI process already fetches its result categories in parallel.
+const calls = {
+  base:            ['scans', 'results', '--repo', REPO, '--quiet'],
+  scanSha:         ['scans', 'history', '--repo', REPO, '--limit', '1'],
+  typeSast:        ['scans', 'results', '--repo', REPO, '--types', 'sast',       '--quiet'],
+  typeSca:         ['scans', 'results', '--repo', REPO, '--types', 'sca',        '--quiet'],
+  typeSecrets:     ['scans', 'results', '--repo', REPO, '--types', 'secrets',    '--quiet'],
+  typeIac:         ['scans', 'results', '--repo', REPO, '--types', 'iac',        '--quiet'],
+  typeDeadCode:    ['scans', 'results', '--repo', REPO, '--types', 'dead_code',  '--quiet'],
+  typeSastSca:     ['scans', 'results', '--repo', REPO, '--types', 'sast,sca',   '--quiet'],
+  severity:        ['scans', 'results', '--repo', REPO, '--severity', 'critical,high', '--quiet'],
+  page0:           ['scans', 'results', '--repo', REPO, '--limit', '5', '--offset', '0', '--quiet'],
+  page1:           ['scans', 'results', '--repo', REPO, '--limit', '5', '--offset', '5', '--quiet'],
+  pathFilter:      ['scans', 'results', '--repo', REPO, '--path', 'src/**',      '--quiet'],
+  checkFilter:     ['scans', 'results', '--repo', REPO, '--check', '(?i)sql',    '--quiet'],
+  fmtJson:         ['scans', 'results', '--repo', REPO, '--format', 'json',      '--quiet'],
+  fmtCsv:          ['scans', 'results', '--repo', REPO, '--format', 'csv',       '--quiet'],
+  fmtMd:           ['scans', 'results', '--repo', REPO, '--format', 'md',        '--quiet'],
+  fmtTable:        ['scans', 'results', '--repo', REPO, '--format', 'table', '--no-color', '--quiet'],
+  fmtSarif:        ['scans', 'results', '--repo', REPO, '--format', 'sarif', '--output', sarifPath, '--quiet'],
+  fmtJsonFile:     ['scans', 'results', '--repo', REPO, '--output', jsonPath,    '--quiet'],
+  fieldsBasic:     ['scans', 'results', '--repo', REPO, '--fields', 'id,severity,file_path', '--quiet'],
+  fieldsProjected: ['scans', 'results', '--repo', REPO, '--fields', 'id,severity', '--limit', '1', '--quiet'],
+  filterDismissed:['scans', 'results', '--repo', REPO, '--filter-dismissed',   '--quiet'],
+  deterA:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
+  deterB:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
+};
+
+const concurrency = 2;
+const entries = Object.entries(calls);
+
 beforeAll(async () => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codeant-results-'));
-
-  const sarifPath = path.join(tmpDir, 'out.sarif');
-  const jsonPath  = path.join(tmpDir, 'out.json');
-
-  // Exercise all commands without turning a functional check into a burst load
-  // test: each CLI process already fetches its result categories in parallel.
-  const calls = {
-    base:            ['scans', 'results', '--repo', REPO, '--quiet'],
-    scanSha:         ['scans', 'history', '--repo', REPO, '--limit', '1'],
-    typeSast:        ['scans', 'results', '--repo', REPO, '--types', 'sast',       '--quiet'],
-    typeSca:         ['scans', 'results', '--repo', REPO, '--types', 'sca',        '--quiet'],
-    typeSecrets:     ['scans', 'results', '--repo', REPO, '--types', 'secrets',    '--quiet'],
-    typeIac:         ['scans', 'results', '--repo', REPO, '--types', 'iac',        '--quiet'],
-    typeDeadCode:    ['scans', 'results', '--repo', REPO, '--types', 'dead_code',  '--quiet'],
-    typeSastSca:     ['scans', 'results', '--repo', REPO, '--types', 'sast,sca',   '--quiet'],
-    severity:        ['scans', 'results', '--repo', REPO, '--severity', 'critical,high', '--quiet'],
-    page0:           ['scans', 'results', '--repo', REPO, '--limit', '5', '--offset', '0', '--quiet'],
-    page1:           ['scans', 'results', '--repo', REPO, '--limit', '5', '--offset', '5', '--quiet'],
-    pathFilter:      ['scans', 'results', '--repo', REPO, '--path', 'src/**',      '--quiet'],
-    checkFilter:     ['scans', 'results', '--repo', REPO, '--check', '(?i)sql',    '--quiet'],
-    fmtJson:         ['scans', 'results', '--repo', REPO, '--format', 'json',      '--quiet'],
-    fmtCsv:          ['scans', 'results', '--repo', REPO, '--format', 'csv',       '--quiet'],
-    fmtMd:           ['scans', 'results', '--repo', REPO, '--format', 'md',        '--quiet'],
-    fmtTable:        ['scans', 'results', '--repo', REPO, '--format', 'table', '--no-color', '--quiet'],
-    fmtSarif:        ['scans', 'results', '--repo', REPO, '--format', 'sarif', '--output', sarifPath, '--quiet'],
-    fmtJsonFile:     ['scans', 'results', '--repo', REPO, '--output', jsonPath,    '--quiet'],
-    fieldsBasic:     ['scans', 'results', '--repo', REPO, '--fields', 'id,severity,file_path', '--quiet'],
-    fieldsProjected: ['scans', 'results', '--repo', REPO, '--fields', 'id,severity', '--limit', '1', '--quiet'],
-    filterDismissed:['scans', 'results', '--repo', REPO, '--filter-dismissed',   '--quiet'],
-    deterA:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
-    deterB:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
-  };
-
-  const entries = Object.entries(calls);
   let next = 0;
   async function worker() {
     while (next < entries.length) {
@@ -51,14 +51,14 @@ beforeAll(async () => {
       r[key] = await runAsync(...args);
     }
   }
-  await Promise.all([worker(), worker()]);
+  await Promise.all(Array.from({ length: concurrency }, worker));
 
   // Extract scan SHA from history for the explicit-SHA test
   const shaMatch = r.scanSha.stdout.match(/"latest_commit_sha":\s*"([^"]+)"/);
   r._scanSha = shaMatch ? shaMatch[1] : '';
   r._sarifPath = sarifPath;
   r._jsonPath  = jsonPath;
-}, TIMEOUT * 3);
+}, TIMEOUT * (Math.ceil(entries.length / concurrency) + 1));
 
 afterAll(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });

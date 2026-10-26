@@ -36,6 +36,13 @@ describe('history results contract', () => {
     expect(JSON.stringify(envelope)).not.toContain('hashed_secret');
   });
 
+  it('identifies the completed result behind a newer failed history run', async () => {
+    mocks.fetchApiResponse.mockResolvedValue({ ok: true, status: 200, data: { findings: [occurrence], status: 'failed', run: { scan_run_id: run, status: 'failed' }, results_run_id: 'previous-completed-run', results_status: 'completed' } });
+    const envelope = await runResults({ repo, types: 'secrets', secretsScope: 'history', returnEnvelope: true });
+    expect(envelope.findings).toHaveLength(1);
+    expect(envelope.history_run).toMatchObject({ status: 'failed', results_run_id: 'previous-completed-run', results_status: 'completed' });
+  });
+
   it('works without a snapshot and keeps run metadata separate', async () => {
     mocks.resolveScan.mockRejectedValue(Object.assign(new Error('no scans found'), { exitCode: 2 }));
     const envelope = await runResults({ repo, types: 'secrets', secretsScope: 'history', returnEnvelope: true });
@@ -57,6 +64,20 @@ describe('history results contract', () => {
     const first = normalizeIssue(history.issues[0], 'secrets');
     const second = normalizeIssue({ ...history.issues[0], commit: 'c'.repeat(40) }, 'secrets');
     expect(first.id).not.toBe(second.id);
+  });
+
+  it('attaches history evidence to every matching current occurrence', async () => {
+    mocks.fetchApi.mockResolvedValue({ secrets: { 'old.env': [8, 12].map((line_number) => ({ type: 'example', hashed_secret: 'hash', line_number })) }, status: 'done' });
+    const result = await fetchSecretsResults(repo, commit, { secretsScope: 'all' });
+    expect(result.issues).toHaveLength(2);
+    for (const issue of result.issues) expect(issue.history_occurrences).toHaveLength(1);
+    expect(result.issues[0].history_occurrences).toEqual(result.issues[1].history_occurrences);
+  });
+
+  it('maps public scanner aliases to the scanner that produces both results', async () => {
+    mocks.fetchApi.mockResolvedValue({ scan_run_id: run });
+    await runStartScan({ repo, branch: 'main', commit, types: 'anti_patterns,complex_functions,antipatterns', returnResult: true });
+    expect(mocks.fetchApi).toHaveBeenCalledWith('/extension/analysis/run', 'POST', expect.objectContaining({ scan_types: ['antipatterns'] }));
   });
 
   it('projects metadata without dropping the run state', async () => {
@@ -116,10 +137,10 @@ describe('history results contract', () => {
 describe('SCA remediation contract', () => {
   it('retains manifest, paths and fixed versions through fetch and normalization', async () => {
     const dependencyPaths = [{ manifest: 'apps/web/package.json', lockfile: 'pnpm-lock.yaml', packages: ['direct@1', 'vulnerable@1'], direct_dependency: 'direct@1', resolution: 'COMMITTED_LOCK' }];
-    mocks.fetchApi.mockResolvedValue({ status: 'done', results: { dependency_paths_status: 'done', all_vulnerabilities: [{ package_name: 'vulnerable', package_version: '1', ecosystem: 'NPM', cve_id: 'CVE-EXAMPLE', relative_path: 'apps/web/package.json', dependency_paths: dependencyPaths, dependency_paths_status: 'resolved', fix_details: { fixed_version: '2', fix_available: true } }] } });
+    mocks.fetchApi.mockResolvedValue({ status: 'done', results: { dependency_paths_status: 'done', all_vulnerabilities: [{ package_name: 'vulnerable', package_version: '1', ecosystem: 'NPM', cve_id: 'CVE-EXAMPLE', relative_path: 'apps/web/package.json', dependency_paths: dependencyPaths, dependency_paths_truncated: true, dependency_paths_status: 'resolved', fix_details: { fixed_version: '2', fix_available: true } }] } });
     const result = await fetchScaResults(repo, commit);
     const finding = normalizeIssue(result.issues[0], 'sca');
-    expect(finding).toMatchObject({ file_path: 'apps/web/package.json', metadata: { dependency_paths: dependencyPaths, fix_version: '2', fix_available: true } });
+    expect(finding).toMatchObject({ file_path: 'apps/web/package.json', metadata: { dependency_paths: dependencyPaths, dependency_paths_truncated: true, fix_version: '2', fix_available: true } });
     expect(result.dependencyPathsStatus).toBe('done');
     expect(finding.id).not.toBe(normalizeIssue({ ...result.issues[0], package_version: '3' }, 'sca').id);
   });
