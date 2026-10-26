@@ -1,4 +1,5 @@
 import { fetchApi } from '../utils/fetchApi.js';
+import { getHistoryResults } from './historySecrets.js';
 
 export const ADVANCED_RESULT_TYPES = {
   SCA: 'sca',
@@ -216,7 +217,7 @@ function normalizeAdvancedIssue(item, resultType) {
   }
 
   const normalized = { ...item };
-  normalized.file_path = extractRelativeFilePath(item.file_path || item.path || item.filename || 'unknown');
+  normalized.file_path = extractRelativeFilePath(item.file_path || item.relative_path || item.path || item.filename || item.package_location?.[0] || 'unknown');
   normalized.line_number = item.line_number || item.start_line || item.line || 1;
   normalized.file_line_range =
     Array.isArray(item.file_line_range) && item.file_line_range.length > 0
@@ -226,7 +227,7 @@ function normalizeAdvancedIssue(item, resultType) {
   switch (resultType) {
     case ADVANCED_RESULT_TYPES.SCA:
       normalized.check_name =
-        item.vulnerability_id || item.cve_id || item.advisory_id ||
+        item.vulnerability_id || item.cve_id || item.vul_id || item.advisory_id ||
         (item.package_name ? `Vulnerability in ${item.package_name}` : null) ||
         item.title || item.description || 'Package vulnerability detected';
       // SCA findings carry severity in ratings (where Change Severity overrides land).
@@ -276,6 +277,9 @@ function normalizeAdvancedIssue(item, resultType) {
  */
 export async function fetchAdvancedScanResults(repo, commitId, resultType, opts = {}) {
   const { filterDismissed = false, includeFalsePositives = true } = opts;
+  if (resultType === ADVANCED_RESULT_TYPES.SECRETS && opts.secretsScope && !['current', 'history', 'all'].includes(opts.secretsScope)) {
+    return { success: false, error: 'Invalid secretsScope; use current, history, or all' };
+  }
 
   if (!Object.values(ADVANCED_RESULT_TYPES).includes(resultType)) {
     return {
@@ -285,6 +289,32 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
   }
 
   try {
+    if (resultType === ADVANCED_RESULT_TYPES.SECRETS && opts.secretsScope && opts.secretsScope !== 'current') {
+      const history = await getHistoryResults(repo, commitId, opts);
+      const occurrences = new Map();
+      const historyIssues = (history.findings || []).map((item) => {
+        const issue = normalizeAdvancedIssue({ ...item, finding_scope: 'history' }, resultType);
+        const key = JSON.stringify([issue.commit, issue.file_path, issue.line_number, issue.type || issue.secret_type, issue.hashed_secret]);
+        const occurrenceIndex = occurrences.get(key) || 0;
+        occurrences.set(key, occurrenceIndex + 1);
+        return { ...issue, occurrence_index: occurrenceIndex };
+      });
+      if (opts.secretsScope === 'history') {
+        return { success: true, issues: historyIssues, status: history.status, historyRun: history.run };
+      }
+      const current = await fetchAdvancedScanResults(repo, commitId, resultType, { ...opts, secretsScope: 'current' });
+      if (!current.success) return current;
+      const identity = (issue) => JSON.stringify([issue.file_path, issue.hashed_secret, issue.type || issue.secret_type]);
+      const byIdentity = new Map(current.issues.filter((issue) => issue.hashed_secret).map((issue) => [identity(issue), issue]));
+      const remaining = [];
+      for (const issue of historyIssues) {
+        const match = byIdentity.get(identity(issue));
+        if (match) {
+          (match.history_occurrences ??= []).push({ commit: issue.commit, file_path: issue.file_path, line_number: issue.line_number, branches: issue.branches, tags: issue.tags, verification_status: issue.verification_status, scanned_at: issue.scanned_at });
+        } else remaining.push(issue);
+      }
+      return { ...current, issues: [...current.issues, ...remaining], historyRun: history.run };
+    }
     const response = await fetchApi('/extension/scans2/fetch-advanced-results', 'POST', {
       repo,
       commit_id: commitId,
@@ -379,7 +409,14 @@ export async function fetchAdvancedScanResults(repo, commitId, resultType, opts 
     }
 
     if (resultType === ADVANCED_RESULT_TYPES.SCA) {
-      return { success: true, issues, healthyPackages, status: response.status || 'done' };
+      return { success: true, issues, healthyPackages, status: response.status || 'done', dependencyPathsStatus: response.results?.dependency_paths_status ?? 'unavailable' };
+    }
+
+    if (resultType === ADVANCED_RESULT_TYPES.SECRETS) {
+      for (const issue of issues) {
+        issue.finding_scope = 'current';
+        issue.only_in_history = false;
+      }
     }
 
     return { success: true, issues, status: response.status || 'done' };

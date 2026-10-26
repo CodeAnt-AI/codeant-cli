@@ -14,7 +14,8 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_scans_repos` | read | List repos in an org (slim records, paged: `search`, `limit`, `offset`, `full`). |
 | `codeant_scans_history` | read | Recent scan runs for a repo. |
 | `codeant_scans_get` | read | Severity/category summary for one scan. |
-| `codeant_scans_results` | read | Full findings (SAST, SCA, secrets, IaC, …) for one scan. |
+| `codeant_scans_results` | read | Full findings; `secretsScope: current|history|all` and optional `historyRun` select history evidence. |
+| `codeant_scans_status` | read | History run state for `repo` and optional `run` ID. |
 | `codeant_scans_dismissed` | read | Dismissed alerts for a repo (any analysis type; `sast` and `anti_patterns` are accepted as aliases). |
 | `codeant_scans_overrides` | read | User false-positive, confidence, and severity overrides for a repo. |
 | `codeant_hotlist_list` | read | Prioritized organization-wide Hotlist findings with stable IDs. |
@@ -174,7 +175,7 @@ cd dist/mcpb-stage
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 1) | node server/index.js
 ```
 
-Expect 24 tools in the `tools/list` response (or 27 if `CODEANT_READ_ONLY=0`). `tests/mcp/server.test.js` checks that this list matches the manifest's `tools`.
+Expect 25 tools in the `tools/list` response (or 28 if `CODEANT_READ_ONLY=0`). `tests/mcp/server.test.js` checks that this list matches the manifest's `tools`.
 
 ### Bumping the version
 
@@ -221,3 +222,5 @@ Reviewer notes worth preparing:
 | A tool returns "Result too large" | Follow the hint (smaller `limit`, filters, `fields`), or raise `CODEANT_MCP_MAX_RESULT_CHARS` if your client accepts larger results. |
 | `codeant_review_local` returns "Could not find a .git directory" | The client started the server outside a git repository (Claude Desktop does). Use a project-scoped client such as Claude Code. |
 | MCPB install dialog never appears | Open `.mcpb` with `open -a Claude dist/codeant.mcpb` to force the desktop app to handle it. |
+
+History automation uses `codeant_scans_start` with `types: "historical_secrets"` (write tools enabled), then `codeant_scans_status` and `codeant_scans_results` with `secretsScope: "history"` and `historyRun` set to the returned `scan_run_id`. See [scan contracts](scans.md#git-history-secrets-beta).

@@ -165,3 +165,7 @@ All these tools are available in the default read-only MCP mode. A typical agent
 | Redacted pentest fields | Unlock the engagement in the app; CLI access follows the same entitlement. |
 
 For current authentication, finding coverage, and agent guidance, see the [CodeAnt findings documentation](https://docs.codeant.ai/cli/findings).
+
+## History secrets and SCA remediation evidence
+
+`findings repo` accepts `--secrets-scope current|history|all` (default `current`) and `--history-run <id>`, matching `scans results`. See [scan automation](scans.md#git-history-secrets-beta) for start/status/results examples and schema 1.1. SCA findings now carry per-manifest dependency paths, direct introducers, known lockfiles, and vulnerable-package fix versions in `metadata`.

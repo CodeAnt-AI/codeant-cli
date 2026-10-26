@@ -4,6 +4,7 @@ import { runHistory } from './history.js';
 import { runGet } from './get.js';
 import { runResults } from './results.js';
 import { runDismissed, runOverrides } from './dismissed.js';
+import { getHistoryStatus } from '../../scans/historySecrets.js';
 import { runStartScan } from './start-scan.js';
 import { setQuiet, setNoColor } from './lib/log.js';
 import { setNoColor as tableSetNoColor } from './formatters/table.js';
@@ -64,6 +65,8 @@ export default function registerScansCommands(program, { runCmd }) {
   scans
     .command('results')
     .description('Fetch full scan findings')
+    .option('--secrets-scope <scope>', 'current|history|all (default: current)', 'current')
+    .option('--history-run <id>', 'Read a specific history scan run')
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--scan <sha>', 'Specific commit SHA to use')
     .option('--branch <name>', 'Resolve latest scan on this branch')
@@ -101,6 +104,8 @@ export default function registerScansCommands(program, { runCmd }) {
           severity: opts.severity,
           path: opts.path,
           check: opts.check,
+          secretsScope: opts.secretsScope,
+          historyRun: opts.historyRun,
           filterDismissed: opts.filterDismissed || false,
           includeFalsePositives: opts.falsePositives ?? true,
           format: opts.format,
@@ -140,10 +145,17 @@ export default function registerScansCommands(program, { runCmd }) {
       runCmd(() => runOverrides({ repo: opts.repo, analysisType: opts.analysisType }))
     );
 
+  scans.command('status').description('Read a history scan run status')
+    .requiredOption('--repo <repo>', 'Repository (owner/repo)')
+    .option('--run <id>', 'History run ID (default: latest)')
+    .action((opts) => runCmd(() => getHistoryStatus(opts)));
+
   // ── start-scan ─────────────────────────────────────────────────────────────
   scans
     .command('start-scan')
     .description('Trigger a new analysis run for a repository')
+    .option('--types <list>', 'Scanner types, including historical_secrets (default: all enabled scanners)')
+    .option('--json', 'Print structured start response with scan_run_id')
     .option('--repo <repo>', 'Repository (owner/repo, auto-detected from git remote)')
     .option('--branch <name>', 'Branch to scan (auto-detected from current checkout)')
     .option('--commit <sha>', 'Commit SHA to scan (resolved from remote if omitted)')
@@ -155,6 +167,8 @@ export default function registerScansCommands(program, { runCmd }) {
           repo: opts.repo,
           branch: opts.branch,
           commit: opts.commit,
+          types: opts.types,
+          json: opts.json,
           include: opts.include,
           exclude: opts.exclude,
         });

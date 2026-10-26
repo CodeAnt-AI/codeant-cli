@@ -14,7 +14,8 @@ beforeAll(async () => {
   const sarifPath = path.join(tmpDir, 'out.sarif');
   const jsonPath  = path.join(tmpDir, 'out.json');
 
-  // Fire every CLI call in parallel — total wall time ≈ slowest single call
+  // Exercise all commands without turning a functional check into a burst load
+  // test: each CLI process already fetches its result categories in parallel.
   const calls = {
     base:            ['scans', 'results', '--repo', REPO, '--quiet'],
     scanSha:         ['scans', 'history', '--repo', REPO, '--limit', '1'],
@@ -37,14 +38,20 @@ beforeAll(async () => {
     fmtJsonFile:     ['scans', 'results', '--repo', REPO, '--output', jsonPath,    '--quiet'],
     fieldsBasic:     ['scans', 'results', '--repo', REPO, '--fields', 'id,severity,file_path', '--quiet'],
     fieldsProjected: ['scans', 'results', '--repo', REPO, '--fields', 'id,severity', '--limit', '1', '--quiet'],
-    includeDismissed:['scans', 'results', '--repo', REPO, '--include-dismissed',   '--quiet'],
+    filterDismissed:['scans', 'results', '--repo', REPO, '--filter-dismissed',   '--quiet'],
     deterA:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
     deterB:          ['scans', 'results', '--repo', REPO, '--types', 'sast', '--limit', '20', '--quiet'],
   };
 
-  const keys    = Object.keys(calls);
-  const results = await Promise.all(keys.map((k) => runAsync(...calls[k])));
-  keys.forEach((k, i) => { r[k] = results[i]; });
+  const entries = Object.entries(calls);
+  let next = 0;
+  async function worker() {
+    while (next < entries.length) {
+      const [key, args] = entries[next++];
+      r[key] = await runAsync(...args);
+    }
+  }
+  await Promise.all([worker(), worker()]);
 
   // Extract scan SHA from history for the explicit-SHA test
   const shaMatch = r.scanSha.stdout.match(/"latest_commit_sha":\s*"([^"]+)"/);
@@ -60,7 +67,7 @@ afterAll(() => {
 // ── Basic ─────────────────────────────────────────────────────────────────────
 describe('results — basic', () => {
   it('exit 0',              () => expect(r.base.status,  r.base.combined).toBe(0));
-  it('schema_version 1.0',  () => expect(r.base.stdout).toMatch('"schema_version": "1.0"'));
+  it('schema_version 1.1',  () => expect(r.base.stdout).toMatch('"schema_version": "1.1"'));
   it("has 'findings' key",  () => expect(r.base.stdout).toMatch('"findings"'));
   it("has 'pagination' key",() => expect(r.base.stdout).toMatch('"pagination"'));
 });
@@ -111,7 +118,7 @@ describe('results — SARIF output to file', () => {
 // ── JSON output to file ───────────────────────────────────────────────────────
 describe('results — JSON output to file', () => {
   it('JSON file exists',              () => expect(fs.existsSync(r._jsonPath)).toBe(true));
-  it('JSON file schema_version 1.0',  () => expect(JSON.parse(fs.readFileSync(r._jsonPath, 'utf8')).schema_version).toBe('1.0'));
+  it('JSON file schema_version 1.1',  () => expect(JSON.parse(fs.readFileSync(r._jsonPath, 'utf8')).schema_version).toBe('1.1'));
 });
 
 // ── Field projection ──────────────────────────────────────────────────────────
@@ -131,8 +138,8 @@ describe('results — field projection', () => {
 
 // ── Dismissed ─────────────────────────────────────────────────────────────────
 describe('results — dismissed', () => {
-  it('default excludes dismissed — exit 0',   () => expect(r.base.status, r.base.combined).toBe(0));
-  it('--include-dismissed — exit 0',          () => expect(r.includeDismissed.status, r.includeDismissed.combined).toBe(0));
+  it('default includes dismissed — exit 0',   () => expect(r.base.status, r.base.combined).toBe(0));
+  it('--filter-dismissed — exit 0',          () => expect(r.filterDismissed.status, r.filterDismissed.combined).toBe(0));
 });
 
 // ── Explicit scan SHA ─────────────────────────────────────────────────────────

@@ -3,6 +3,8 @@ import { promisify } from 'util';
 import { detectRepoName } from '../../scm/index.js';
 import { startScan } from '../../scans/startScan.js';
 
+const SCAN_TYPES = new Set(['secrets', 'historical_secrets', 'sast', 'sca', 'iac', 'sbom', 'duplicate_code', 'docstring', 'antipatterns', 'dead_code']);
+
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
@@ -52,7 +54,9 @@ async function resolveRemoteCommit(branch) {
   }
 }
 
-export async function runStartScan({ repo, branch, commit, include, exclude } = {}) {
+export async function runStartScan({ repo, branch, commit, include, exclude, types, json = false, returnResult = false } = {}) {
+  const scanTypes = types ? types.split(',').map((value) => value.trim()).filter(Boolean) : undefined;
+  if (types !== undefined && (!scanTypes?.length || scanTypes.some((value) => !SCAN_TYPES.has(value)))) throw new Error('Invalid --types for scan start');
   const resolvedRepo = repo || detectRepoName();
   if (!resolvedRepo) {
     const err = new Error('Could not detect repo name. Use --repo owner/repo');
@@ -78,6 +82,7 @@ export async function runStartScan({ repo, branch, commit, include, exclude } = 
     commitId,
     includeFiles: includeFiles.length ? includeFiles : undefined,
     excludeFiles: excludeFiles.length ? excludeFiles : undefined,
+    scanTypes,
   });
 
   if (!result.success) {
@@ -86,5 +91,6 @@ export async function runStartScan({ repo, branch, commit, include, exclude } = 
     throw err;
   }
 
-  console.log(result.message || 'Analysis started');
+  if (returnResult) return result;
+  console.log(json ? JSON.stringify(result, null, 2) : result.message || 'Analysis started');
 }

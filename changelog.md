@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.15] - 26/10/2026
+
+- Added `--secrets-scope current|history|all` to `findings repo` and `scans results`, with `current` as the default. Use `--history-run` to retrieve a specific history scan, including when no snapshot scan exists.
+- Added `scans start-scan --types historical_secrets --json` to start a history scan and return its run ID, and `scans status --repo … --run …` to track its progress. Requested history features report an explicit error when the backend does not support them.
+- Secret results now preserve historical commit, file, line, containing branch/tag references, scan time, and `only_in_history` when a snapshot comparison is available. Native verification and cached live-validation verdicts remain separate; unavailable validation does not imply revocation.
+- SCA results now include dependency paths, direct introducers, manifest locations, known lockfiles, declaration evidence, and resolution provenance when supplied by the backend. Fixed versions and vulnerable ranges are preserved, including nested advisory fix fields. Dependency-path readiness is exposed independently of AI reachability verification.
+- Added the history options and scan-status tool to MCP. Programmatic fetchers, field projection, JSON, SARIF, and CSV exports preserve the new evidence; CSV includes JSON-encoded package and metadata columns.
+- Updated the normalized results schema to `1.1`. SCA finding IDs include package, version, and manifest context; historical finding IDs distinguish commits and repeated occurrences. Consumers that persist finding IDs should account for these corrections.
+- Documented the history trigger → poll → retrieve workflow, SCA remediation evidence, backend compatibility requirements, and npm as this repository's distribution channel. Existing scan artifacts remain readable; richer evidence requires a subsequent scan.
+- Added deterministic contract tests and opt-in live history tests. Live scan-result tests use bounded concurrency, and organization discovery tests support accounts connected to multiple organizations.
+
 ## [0.5.14] - 15/10/2026
 - Increased file limits on code review to 40 files
 
