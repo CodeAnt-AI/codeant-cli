@@ -106,6 +106,8 @@ function runRepoResults(options) {
     scan: options.scan,
     branch: options.branch,
     types: options.types,
+    secretsScope: options.secretsScope,
+    historyRun: options.historyRun,
     severity: options.severity,
     path: options.path,
     check: options.check,
@@ -132,6 +134,8 @@ export default function registerFindingsCommands(program, { runCmd }) {
   findings
     .command('repo')
     .description('Fetch repo-level SAST, SCA, IaC, secrets, anti-pattern, and quality findings')
+    .option('--secrets-scope <scope>', 'current|history|all (default: current)', 'current')
+    .option('--history-run <id>', 'Read a specific history scan run')
     .requiredOption('--repo <repo>', 'Repository (owner/repo)')
     .option('--scan <sha>', 'Specific commit SHA to use')
     .option('--branch <name>', 'Resolve latest scan on this branch')

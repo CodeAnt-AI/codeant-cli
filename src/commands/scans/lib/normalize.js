@@ -1,4 +1,5 @@
 import { createRequire } from 'module';
+import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../../../../package.json');
@@ -46,7 +47,7 @@ export function normalizeIssue(issue, category) {
   const filePath = issue.file_path || 'unknown';
   const lineNumber = issue.line_number || issue.start_line || issue.line || 1;
   const lineRange = issue.file_line_range || issue.line_range || [lineNumber];
-  const checkId = issue.check_id || issue.test_id || issue.rule_id || issue.vulnerability_id || issue.cve_id || '';
+  const checkId = issue.check_id || issue.test_id || issue.rule_id || issue.vulnerability_id || issue.cve_id || issue.vul_id || issue.advisory_id || '';
   const checkName = issue.check_name || issue.issue_text || issue.message || issue.description || issue.name || '';
   const message = issue.message || issue.issue_text || issue.description || checkName || '';
   const severity = normalizeSeverity(issue.severity);
@@ -79,6 +80,10 @@ export function normalizeIssue(issue, category) {
   } else if (category === 'secrets') {
     if (issue.type || issue.secret_type) metadata.secret_type = issue.type || issue.secret_type;
     if (issue.confidence_score) metadata.confidence_score = issue.confidence_score;
+    for (const key of ['commit', 'branches', 'tags', 'scanned_at', 'only_in_history', 'occurrence_index', 'verification_status', 'live_status', 'live_validator', 'live_vendor', 'live_validated_at', 'live_revalidated_at', 'live_validation_details_available', 'history_occurrences']) {
+      if (issue[key] !== undefined) metadata[key] = issue[key];
+    }
+    if (issue.finding_scope) metadata.scope = issue.finding_scope;
   } else if (category === 'dead_code') {
     if (issue.type) metadata.type = issue.type;
     if (issue.confidence) metadata.confidence = issue.confidence;
@@ -86,7 +91,12 @@ export function normalizeIssue(issue, category) {
     if (issue.complexity !== undefined) metadata.complexity = issue.complexity;
   } else if (category === 'sca') {
     if (issue.cvss_score !== undefined) metadata.cvss_score = issue.cvss_score;
-    if (issue.fix_version) metadata.fix_version = issue.fix_version;
+    metadata.fix_version = issue.fix_version || issue.fix_details?.fixed_version || issue.fixed_version || issue.first_patched_version || null;
+    metadata.fix_available = issue.fix_available ?? issue.fix_details?.fix_available ?? !!metadata.fix_version;
+    if (issue.fix_details?.vulnerable_version_range !== undefined) metadata.vulnerable_version_range = issue.fix_details.vulnerable_version_range;
+    for (const key of ['dependency_paths', 'dependency_paths_status', 'dependency_paths_truncated', 'package_location', 'vulnerable_version_range', 'vulnerable_range', 'dependency_relationship']) {
+      if (issue[key] !== undefined) metadata[key] = issue[key];
+    }
   } else if (category === 'duplicate_code') {
     if (issue.duplicate_group !== undefined) metadata.duplicate_group = issue.duplicate_group;
     if (issue.duplicate_locations) metadata.duplicate_locations = issue.duplicate_locations;
@@ -103,7 +113,13 @@ export function normalizeIssue(issue, category) {
     metadata.false_positive = true;
   }
 
-  const id = buildId(category, filePath, lineNumber, checkId, message);
+  let id = buildId(category, filePath, lineNumber, checkId, message);
+  if (category === 'sca' || (category === 'secrets' && issue.finding_scope === 'history')) {
+    const identity = category === 'sca'
+      ? [packageInfo, issue.relative_path || filePath, checkId]
+      : [issue.commit, issue.hashed_secret, filePath, lineNumber, metadata.secret_type, issue.occurrence_index ?? 0];
+    id += `:${createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 24)}`;
+  }
 
   return {
     id,
@@ -147,7 +163,7 @@ export function buildEnvelope({
   const allCategory = { ...byCategory };
 
   return {
-    schema_version: '1.0',
+    schema_version: '1.1',
     tool: 'codeant-cli',
     tool_version: pkg.version,
     generated_at: new Date().toISOString(),

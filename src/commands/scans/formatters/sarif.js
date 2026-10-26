@@ -58,7 +58,8 @@ export default {
           findingId: f.id,
           category: f.category,
           severity: f.severity,
-          dismissed: f.dismissed,
+          dismissed: f.metadata?.dismissed,
+          metadata: f.metadata,
         },
       };
 

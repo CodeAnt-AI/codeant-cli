@@ -1,3 +1,4 @@
+import { getHistoryStatus } from '../scans/historySecrets.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -192,6 +193,8 @@ export function createMcpServer() {
         scan: z.string().optional().describe('Specific commit SHA.'),
         branch: z.string().optional().describe('Resolve the latest scan on this branch.'),
         types: z.string().optional().describe('Comma-separated types: sast,sca,secrets,iac,dead_code,duplicate_code,sbom,anti_patterns,docstring,complex_functions,all (default "all").'),
+        secretsScope: z.enum(['current', 'history', 'all']).optional().describe('Secret finding scope (default current).'),
+        historyRun: z.string().uuid().optional().describe('Specific history scan run ID.'),
         severity: z.string().optional().describe('Comma-separated severities (e.g. "critical,high").'),
         path: z.string().optional().describe('File path glob filter.'),
         check: z.string().optional().describe('Filter by check ID or name (regex).'),
@@ -210,6 +213,8 @@ export function createMcpServer() {
           scan: input.scan,
           branch: input.branch,
           types: input.types ?? 'all',
+          secretsScope: input.secretsScope,
+          historyRun: input.historyRun,
           severity: input.severity,
           path: input.path,
           check: input.check,
@@ -227,6 +232,15 @@ export function createMcpServer() {
       }
     }
   );
+
+  server.registerTool('codeant_scans_status', {
+    title: 'Read history scan status',
+    description: 'Read a history scan run status without starting any work.',
+    inputSchema: { repo: z.string(), run: z.string().uuid().optional() },
+    annotations: READ,
+  }, async (input) => {
+    try { return ok(await getHistoryStatus(input)); } catch (err) { return fail(err); }
+  });
 
   server.registerTool(
     'codeant_scans_dismissed',
@@ -789,6 +803,7 @@ export function createMcpServer() {
           repo: z.string().optional().describe('owner/repo (auto-detected from git remote if omitted).'),
           branch: z.string().optional(),
           commit: z.string().optional(),
+          types: z.string().optional().describe('Comma-separated scanner types, including historical_secrets.'),
           include: z.string().optional().describe('Comma-separated globs.'),
           exclude: z.string().optional().describe('Comma-separated globs.'),
         },
@@ -796,8 +811,7 @@ export function createMcpServer() {
       },
       async (input) => {
         try {
-          const text = await captureStdout(() => runStartScan(input));
-          return textResult(text || '{}');
+          return ok(await runStartScan({ ...input, returnResult: true }));
         } catch (err) { return fail(err); }
       }
     );

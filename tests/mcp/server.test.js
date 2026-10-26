@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   resolveScan: vi.fn(),
   fetchSastResults: vi.fn(),
+  fetchSecretsResults: vi.fn(),
   listRepos: vi.fn(),
   runReviewHeadless: vi.fn(),
   runHotlistList: vi.fn(),
@@ -44,7 +45,7 @@ vi.mock('../../src/scans/fetchScanResults.js', () => ({
 vi.mock('../../src/scans/fetchAdvancedScanResults.js', () => ({
   fetchScaResults: vi.fn(),
   fetchSbomResults: vi.fn(),
-  fetchSecretsResults: vi.fn(),
+  fetchSecretsResults: mocks.fetchSecretsResults,
   fetchIacResults: vi.fn(),
   fetchDeadCodeResults: vi.fn(),
   fetchDuplicateCodeResults: vi.fn(),
@@ -104,6 +105,7 @@ const READ_TOOLS = [
   'codeant_scans_overrides',
   'codeant_scans_repos',
   'codeant_scans_results',
+  'codeant_scans_status',
 ];
 const WRITE_TOOLS = ['codeant_api_request', 'codeant_pr_resolve', 'codeant_scans_start'];
 
@@ -182,6 +184,27 @@ describe('MCP server registration', () => {
 });
 
 describe('codeant_scans_results concurrency', () => {
+  it('reads history job status without starting a scan', async () => {
+    const run = '9d7d70ad-3b32-4d3f-9f9a-222222222222';
+    routeFetch('/extension/scans2/secrets/history/status', (_url, options) => {
+      expect(JSON.parse(options.body)).toEqual({ repo: 'acme/repo', scan_run_id: run });
+      return json({ scan_run_id: run, status: 'awaiting_verification' });
+    });
+    const client = await connect();
+    expect(parse(await call(client, 'codeant_scans_status', { repo: 'acme/repo', run }))).toMatchObject({ scan_run_id: run, status: 'awaiting_verification' });
+  });
+
+  it('passes history scope and run identity through the MCP results tool', async () => {
+    const { fetchSecretsResults } = await import('../../src/scans/fetchAdvancedScanResults.js');
+    const run = '9d7d70ad-3b32-4d3f-9f9a-222222222222';
+    mocks.resolveScan.mockResolvedValue({ commit_id: 'snapshot' });
+    fetchSecretsResults.mockResolvedValue({ success: true, status: 'completed', issues: [], historyRun: { scan_run_id: run, status: 'completed' } });
+    const client = await connect();
+    const result = parse(await call(client, 'codeant_scans_results', { repo: 'acme/repo', types: 'secrets', secretsScope: 'history', historyRun: run }));
+    expect(fetchSecretsResults).toHaveBeenCalledWith('acme/repo', 'snapshot', expect.objectContaining({ secretsScope: 'history', historyRun: run }));
+    expect(result.history_run.scan_run_id).toBe(run);
+  });
+
   it('answers parallel calls with their own results and never writes to stdout', async () => {
     mocks.resolveScan.mockImplementation(async ({ repo }) => ({
       commit_id: `sha-${repo}`, branch: 'main', timestamp: '2026-10-01T00:00:00Z', status: 'done', resolved_by: 'latest',

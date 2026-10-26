@@ -24,6 +24,8 @@ export async function runResults(opts = {}) {
     check: checkRegex,
     filterDismissed = false,
     includeFalsePositives = true,
+    secretsScope = 'current',
+    historyRun,
     format = 'json',
     output: outputPath = null,
     fields = null,
@@ -46,24 +48,34 @@ export async function runResults(opts = {}) {
     throw err;
   }
 
-  // 1. Resolve scan
-  progress(`resolving scan for ${repo}…`);
-  const scanMeta = await resolveScan({ repo, scan, branch });
-  progress(`using commit ${scanMeta.commit_id} (${scanMeta.resolved_by})`);
-
-  // 2. Parse types
+  if (!['current', 'history', 'all'].includes(secretsScope)) throw new Error('Invalid --secrets-scope; use current, history, or all');
   const categories = parseTypes(types);
+  if (secretsScope !== 'current' && !categories.some((category) => category.key === 'secrets')) throw new Error('--secrets-scope requires the secrets type');
+  if (historyRun && secretsScope === 'current') throw new Error('--history-run requires --secrets-scope history or all');
+
+  // 1. Resolve the optional comparison snapshot separately from the history run.
+  progress(`resolving scan for ${repo}…`);
+  let scanMeta;
+  try {
+    scanMeta = await resolveScan({ repo, scan, branch });
+  } catch (error) {
+    if (error.exitCode !== 2 || secretsScope !== 'history' || categories.some((category) => category.key !== 'secrets') || branch || scan) throw error;
+    scanMeta = null;
+  }
+  if (scanMeta) progress(`using commit ${scanMeta.commit_id} (${scanMeta.resolved_by})`);
 
   // 3. Fetch in parallel
   progress(`fetching ${categories.map((c) => c.key).join(', ')}…`);
-  const fetchOpts = { filterDismissed, includeFalsePositives };
+  const fetchOpts = { filterDismissed, includeFalsePositives, secretsScope, historyRun };
   const settled = await Promise.allSettled(
-    categories.map((c) => c.fetcher(repo, scanMeta.commit_id, fetchOpts))
+    categories.map((c) => c.fetcher(repo, scanMeta?.commit_id, fetchOpts))
   );
 
   // 4. Collect findings + errors
   const allFindings = [];
   const errors = [];
+  const categoryStatus = {};
+  let historyRunMeta;
 
   for (let i = 0; i < settled.length; i++) {
     const cat = categories[i];
@@ -73,7 +85,7 @@ export async function runResults(opts = {}) {
       const msg = s.status === 'rejected' ? s.reason?.message : s.value?.error;
       errors.push({ category: cat.key, error: msg || 'unknown error' });
       logError({ category: cat.key, error: msg || 'unknown error' });
-      if (failFast) {
+      if (failFast || (cat.key === 'secrets' && secretsScope !== 'current')) {
         const err = new Error(`Category "${cat.key}" failed: ${msg}`);
         err.exitCode = 3;
         throw err;
@@ -82,6 +94,9 @@ export async function runResults(opts = {}) {
     }
 
     progress(`normalizing ${cat.key} (${s.value.issues?.length ?? 0} issues)…`);
+    categoryStatus[cat.key] = { status: s.value.status ?? 'unknown' };
+    if (s.value.dependencyPathsStatus) categoryStatus[cat.key].dependency_paths_status = s.value.dependencyPathsStatus;
+    if (s.value.historyRun) historyRunMeta = s.value.historyRun;
     for (const issue of s.value.issues ?? []) {
       const f = normalizeIssue(issue, cat.key);
       if (f) allFindings.push(f);
@@ -112,6 +127,7 @@ export async function runResults(opts = {}) {
     check: checkRegex || null,
     filter_dismissed: filterDismissed,
     include_false_positives: includeFalsePositives,
+    secrets_scope: secretsScope,
   };
 
   // Rebuild summary from all filtered (pre-page) findings
@@ -133,6 +149,8 @@ export async function runResults(opts = {}) {
   });
   // Override summary with pre-pagination counts
   envelope.summary = { total: sorted.length, by_severity: summaryBySev, by_category: summaryByCat };
+  envelope.category_status = categoryStatus;
+  if (historyRunMeta) envelope.history_run = historyRunMeta;
 
   // 9. Project fields
   if (fields) {

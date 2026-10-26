@@ -128,3 +128,13 @@ Set `CODEANT_READ_ONLY=0` to opt in to write tools, including `codeant_api_reque
 | Invalid token after upgrading | Older keys lack verified CLI identity metadata. Run `codeant logout`, then `codeant login`. |
 | Hotlist is still building | Retry, or increase `--max-wait`. |
 | Finding not found | Refresh the app/Hotlist and copy the current stable finding ID and tenant context. |
+
+## History scan API workflow
+
+The CLI uses `POST /extension/analysis/run` with `repo`, `branch`, `commit_id`, and optional `scan_types: ["historical_secrets"]`. The response includes `scan_run_id`. Omitting `scan_types` preserves the existing scanner selection.
+
+Poll `POST /extension/scans2/secrets/history/status` with `repo` and `scan_run_id`. Retrieve `POST /extension/scans2/secrets/history/results` with the same fields and optional comparison `commit_id`, `filter_dismissed`, and `include_false_positives`. Both extension endpoints authenticate the connection key and enforce organization/provider/repository scope. Results return `findings`, `run`, and `status`; they never return credential storage.
+
+The authenticated application aliases are `/analysis/secrets/repository/status` and `/analysis/secrets/repository/fetch`. Existing `/api/analysis/start` also accepts `scan_types: ["historical_secrets"]` with its existing authentication contract. `/api/analysis/results/secrets` and `/api/analysis/results/sca` expose the same safe validation and dependency evidence as extension readers.
+
+See [the history workflow and SCA contract](scans.md#git-history-secrets-beta) for commands, state meanings, comparison semantics, and migration details. Deploy backend support first. Older artifacts remain readable; no automatic rescans or backfills are triggered.

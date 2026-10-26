@@ -8,6 +8,8 @@ A command-line tool for code review and security scanning.
 npm install -g codeant-cli
 ```
 
+This repository distributes the Node.js CLI as [`codeant-cli` on npm](https://www.npmjs.com/package/codeant-cli). The npm package’s repository metadata identifies its canonical source. Ownership of the same-named PyPI package is unconfirmed; use the npm installation above for this CLI.
+
 For installation, authentication, and self-hosted setup, see the [CodeAnt CLI setup guide](https://docs.codeant.ai/cli/setup).
 
 ## Quick Start

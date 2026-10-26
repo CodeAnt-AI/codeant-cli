@@ -33,3 +33,6 @@ coverage/
 
 # Shell scripts
 *.sh
+
+# Local Codex connection settings can contain credentials.
+.codex/
