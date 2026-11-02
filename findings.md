@@ -122,7 +122,7 @@ codeant findings cloud list \
 
 ### Starting a container scan
 
-`findings cloud start` scans images from an AWS, Azure, or GCP registry connection already set up in the CodeAnt app. It needs no UI and works with `CODEANT_API_TOKEN` in CI.
+`findings cloud start` scans images from an AWS, Azure, or GCP registry connection already set up in the CodeAnt app. For AWS, the CodeAnt IAM role needs the `AmazonEC2ContainerRegistryReadOnly` policy; the CSPM policies alone cannot pull images (see [Container Scanning](https://docs.codeant.ai/cloud_security/container-scanning)). It needs no UI and works with `CODEANT_API_TOKEN` in CI.
 
 ```bash
 # Start and return immediately

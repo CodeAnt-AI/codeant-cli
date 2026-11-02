@@ -136,11 +136,11 @@ export async function runCloudScanStart(options = {}) {
   if (normalizeKind(options.kind) !== 'container') {
     throw new Error('Only --kind container scans can be started from the CLI.');
   }
-  const failOn = options.failOn && String(options.failOn).trim().toLowerCase();
-  if (failOn && !SEVERITIES.includes(failOn)) {
+  const failOn = options.failOn?.toString().trim().toLowerCase();
+  if (failOn !== undefined && !SEVERITIES.includes(failOn)) {
     throw new Error(`--fail-on must be one of: ${SEVERITIES.join(', ')}.`);
   }
-  if (failOn && !options.wait) throw new Error('--fail-on requires --wait.');
+  if (failOn !== undefined && !options.wait) throw new Error('--fail-on requires --wait.');
   const target = {};
   if (provider === 'aws') target.region = requireValue(options.region, '--region for AWS container scans');
   if (options.configId) target.config_id = options.configId;
