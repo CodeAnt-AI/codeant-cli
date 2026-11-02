@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.16] - 02/11/2026
+
+- Added `findings cloud start --kind container` to start an AWS ECR, Azure ACR, or GCP Artifact Registry container scan without the UI. `--wait` waits up to `--timeout` seconds (default 1800), and `--fail-on <severity>` exits 2 when the scan has findings at or above that severity. A scan with failed images exits 3 and a timeout exits 4.
+
 ## [0.5.15] - 26/10/2026
 
 - Added `--secrets-scope current|history|all` to `findings repo` and `scans results`, with `current` as the default. Use `--history-run` to retrieve a specific history scan, including when no snapshot scan exists.

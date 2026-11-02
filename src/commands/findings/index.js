@@ -4,7 +4,8 @@ import { setQuiet, setNoColor } from '../scans/lib/log.js';
 import { setNoColor as tableSetNoColor } from '../scans/formatters/table.js';
 import { runHotlistGet, runHotlistList } from '../../hotlist/client.js';
 import { runOrganizationAntipatterns } from '../../findings/antipatterns.js';
-import { runCloudFindingGet, runCloudFindings, runCloudHistory } from '../../findings/cloud.js';
+import { runCloudFindingGet, runCloudFindings, runCloudHistory, runCloudScanStart } from '../../findings/cloud.js';
+import { intOption } from '../../utils/intOption.js';
 import { runPentestHistory, runPentestIssues, runPentestReport } from '../../findings/pentest.js';
 
 function addTenantOptions(command) {
@@ -195,6 +196,37 @@ export default function registerFindingsCommands(program, { runCmd }) {
   addCloudScopeOptions(cloud.command('get').description('Get one cloud finding with full detail'))
     .requiredOption('--uid <uid>', 'Finding UID')
     .action((options) => runCmd(() => runCloudFindingGet({ ...cloudOptions(options), uid: options.uid })));
+
+  addTenantOptions(cloud.command('start').description('Start a container scan; --wait waits for it and applies --fail-on'))
+    .requiredOption('--provider <provider>', 'Cloud provider: aws, azure, or gcp')
+    .requiredOption('--kind <kind>', 'Scan kind: container')
+    .option('--region <region>', 'AWS region of the ECR registry (required for AWS)')
+    .option('--config-id <id>', 'AWS connection ID (default: the first connected AWS account)')
+    .option('--repositories <list>', 'Comma-separated repositories, each optionally :tag (default: every repository)')
+    .option('--wait', 'Wait until the scan finishes')
+    .option('--timeout <seconds>', 'Maximum --wait time (default: 1800)', intOption({ min: 1 }))
+    .option('--fail-on <severity>', 'With --wait, exit 2 when findings at or above: critical, high, medium, low, unknown')
+    .action(async (options) => {
+      try {
+        const result = await runCloudScanStart({
+          ...tenantOptions(options),
+          provider: options.provider,
+          kind: options.kind,
+          region: options.region,
+          configId: options.configId,
+          repositories: options.repositories,
+          wait: options.wait,
+          timeout: options.timeout,
+          failOn: options.failOn,
+        });
+        console.log(JSON.stringify(result, null, 2));
+        if (result.threshold_breached) process.exitCode = 2;
+        else if (result.status === 'completed_with_errors') process.exitCode = 3;
+      } catch (err) {
+        console.error(JSON.stringify({ error: err.message }, null, 2));
+        process.exit(err.exitCode ?? 1);
+      }
+    });
 
   const pentest = findings.command('pentest').description('Pentest histories, issues, and reports');
   addTenantOptions(pentest.command('history').description('List pentest engagements'))

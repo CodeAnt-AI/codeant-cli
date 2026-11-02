@@ -1,6 +1,6 @@
 # CodeAnt findings CLI
 
-`codeant findings` is the unified, read-only entry point for findings visible in the CodeAnt app. It reuses the same authenticated backend endpoints and authorization checks as the UI.
+`codeant findings` is the unified entry point for findings visible in the CodeAnt app. It reuses the same authenticated backend endpoints and authorization checks as the UI. Every command is read-only except `findings cloud start`, which starts a container scan.
 
 ```bash
 codeant login
@@ -20,6 +20,7 @@ When one login has multiple connections, pass the exact `--org` and `--service` 
 | Prioritized SAST/SCA/IaC/Secrets/Infrastructure/AI Exploitation | `codeant findings list/get` | organization Hotlist |
 | Anti-patterns across repositories | `codeant findings antipatterns` | selected repos or organization |
 | AWS/Azure/GCP CSPM, VM, and container findings | `codeant findings cloud history/list/get` | organization + cloud resource scope |
+| Start an ECR/ACR/Artifact Registry container scan | `codeant findings cloud start` | organization + registry connection |
 | Pentest engagements, issues, reports | `codeant findings pentest history/issues/report` | organization + engagement |
 
 The existing `codeant scans repos`, `codeant scans results`, and `codeant hotlist list/get` commands remain supported. The unified commands are aliases or thin authenticated clients, so existing scripts do not need to migrate.
@@ -118,6 +119,64 @@ codeant findings cloud list \
 ```
 
 `--kind` defaults to `cspm`; use `vm` or `container` for the other Cloud Security result views. CSPM `cloud list` supports `--cloud-service`, `--severity`, `--status`, `--framework`, and `--min-days-unused`. AWS additionally supports `--exploit-attempted-only`; Azure additionally supports `--subscription-id`. CSPM responses include `findings` and `dismissed_findings`. VM/container responses keep the UI result payload, but `findings` is paged with the same `--limit`/`--offset`/`--all` options as anti-patterns and the response carries `total`; `findings_total` and `severity_rollup` still describe the whole scan.
+
+### Starting a container scan
+
+`findings cloud start` scans images from an AWS, Azure, or GCP registry connection already set up in the CodeAnt app. It needs no UI and works with `CODEANT_API_TOKEN` in CI.
+
+```bash
+# Start and return immediately
+codeant findings cloud start --provider aws --kind container \
+  --region ap-south-1 --repositories api,worker:v1.4.2
+
+# Start, wait up to 30 minutes, and exit 2 on HIGH or CRITICAL findings
+codeant findings cloud start --provider aws --kind container \
+  --region ap-south-1 --repositories api \
+  --wait --timeout 1800 --fail-on high
+
+# Azure ACR and GCP Artifact Registry
+codeant findings cloud start --provider azure --kind container --repositories myregistry/api:latest --wait
+codeant findings cloud start --provider gcp --kind container --repositories my-project/us-central1/docker/api --wait
+
+# Findings of the scan, with the existing command
+codeant findings cloud list --provider aws --kind container --scan-id <scan-id> --all
+```
+
+| Provider | `--repositories` entry | Other inputs |
+|---|---|---|
+| `aws` | `<ecr-repository>` | `--region` (required), `--config-id` to pick one of several connected AWS accounts |
+| `azure` | `<registry-name>/<repository>` | — |
+| `gcp` | `<project>/<location>/<repository>/<image>` | — |
+
+Append `:<tag>` to scan one tag; without it the newest tag is scanned. Without `--repositories`, every repository the connection can see is scanned. The `repositories` field of an earlier scan in `findings cloud history --kind container` shows exact names.
+
+Without `--wait`, the response is `{ "scan_id", "status": "running", "repositories_total" }`. With `--wait`, the CLI checks the scan every 15 seconds and prints its summary once it finishes: `status` (`completed` or `completed_with_errors`), `severity_rollup`, `findings_total`, and one entry per image under `repositories` with its `status` and `error`. With `--fail-on`, the summary also carries `fail_on` and `threshold_breached`. `--fail-on` counts that severity and every higher one, from `critical`, `high`, `medium`, `low`, `unknown`.
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Started (no `--wait`), or finished below the `--fail-on` threshold |
+| `1` | Request error: authentication, missing registry connection, denied cloud access, invalid input |
+| `2` | Findings at or above `--fail-on` |
+| `3` | At least one image failed to scan, for example an unknown repository or tag; see `repositories[].error` |
+| `4` | Still running when `--timeout` ran out; the scan continues and its `scan_id` is in the error |
+
+A threshold breach takes precedence over failed images. A repository name that does not exist does not fail the request; the scan finishes with that image failed (exit `3`).
+
+#### CI example (GitHub Actions)
+
+```yaml
+- name: Scan container image
+  env:
+    CODEANT_API_TOKEN: ${{ secrets.CODEANT_API_TOKEN }}
+  run: |
+    npm install -g codeant-cli
+    codeant findings cloud start --provider aws --kind container \
+      --org my-org --service github \
+      --region us-east-1 --repositories api:${{ github.sha }} \
+      --wait --timeout 1800 --fail-on critical
+```
+
+`CODEANT_API_TOKEN` is the `apiKeyV2` value that `codeant login` saves in `~/.codeant/config.json`. Pass `--org` and `--service` when the login covers more than one organization.
 
 ## Pentest findings
 
