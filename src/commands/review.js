@@ -20,7 +20,7 @@ import {
 
 const MAX_TURNS = 5;
 
-export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'CRITICAL', include = [], exclude = [], baseBranch = null, baseCommit = null }) {
+export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'CRITICAL', include = [], exclude = [], baseBranch = null, baseCommit = null, maxFiles }) {
   const { exit } = useApp();
   const [status, setStatus] = useState('initializing');
   const [error, setError] = useState(null);
@@ -62,7 +62,7 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
         const helper = new ReviewApiHelper(process.cwd());
         await helper.init();
         const gitRoot = helper.getGitRoot() || process.cwd();
-        const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit });
+        const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit, maxFiles });
 
         const meta = requestBody?._meta || null;
         setFileCount(meta?.reviewed_files?.length || Object.keys(requestBody?.file_contents || {}).length);
@@ -202,7 +202,7 @@ export default function Review({ scanType = 'all', lastNCommits = 1, failOn = 'C
 
     runReview();
     return () => { cancelled = true; };
-  }, [scanType, lastNCommits, apiKey]);
+  }, [scanType, lastNCommits, apiKey, maxFiles]);
 
   // Handle exit on terminal states
   useEffect(() => {

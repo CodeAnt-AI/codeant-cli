@@ -141,6 +141,7 @@ codeant review [options]
 | `--include <patterns>` | Comma-separated glob patterns to include files |
 | `--exclude <patterns>` | Comma-separated glob patterns to exclude files |
 | `--headless` | Print JSON with no spinners (for agents and CI) |
+| `--max-files <n>` | Maximum eligible files for this run; overrides the global default (100) |
 
 `--base` and `--base-commit` take precedence over the other scope flags. They compare the base against your working tree, so staged, unstaged, and untracked files are reviewed along with commits. Files ignored by `.gitignore` are never reviewed. The same applies to `secrets`.
 
@@ -155,7 +156,28 @@ codeant review --uncommitted
 
 # CI: fail on MAJOR or worse, JSON output
 codeant review --base main --fail-on MAJOR --headless
+
+# Review a larger refactor without changing global configuration
+codeant review --base main --max-files 150
 ```
+
+The default cap is **100 files**, applied after binary/generated, deleted, glob, size, and line filtering. Files remain limited to 200 KB and 5,000 lines each. Skipped files and the effective cap are reported in the interactive output and headless JSON (`meta.skipped`, `meta.capped`, and `meta.max_files`).
+
+Set a global default for all projects:
+
+```bash
+codeant set-review-max-files 150
+# Or override the saved global value with an environment variable:
+CODEANT_REVIEW_MAX_FILES=200 codeant review --base main
+```
+
+The saved value is `reviewMaxFiles` in `~/.codeant/config.json`. Precedence is `--max-files` (or programmatic/MCP `maxFiles`) → `CODEANT_REVIEW_MAX_FILES` → saved `reviewMaxFiles` → 100. Values must be positive safe integers. The inline override affects only that review and is supported in interactive and headless modes.
+
+### RALF review/fix loop skill
+
+The shareable [CodeAnt RALF loop skill](skills/codeant-ralf-loop/SKILL.md) runs review → validate → fix → verify → repeat. It stops when no new suggestions remain, suggestions repeat, or the pass budget is reached (default five). It reports skipped files and unresolved findings.
+
+The skill ships in the npm package under `skills/codeant-ralf-loop/SKILL.md`. Copy the `codeant-ralf-loop` folder into your agent's skills directory, such as `~/.codex/skills/` or `.claude/skills/` in your project, then ask the agent to run a CodeAnt RALF loop. Claude Code plugin installs discover the repository's `skills/` directory automatically.
 
 #### `set-base-url <url>`
 
@@ -224,8 +246,9 @@ You can also use environment variables:
 |----------|-------------|
 | `CODEANT_API_URL` | API base URL (overrides config) |
 | `CODEANT_API_TOKEN` | Authentication token (overrides config) |
+| `CODEANT_REVIEW_MAX_FILES` | Global review file cap (default 100; overrides saved `reviewMaxFiles`; per-run `--max-files` takes precedence) |
 
-**Priority order:**
+**Priority order for saved settings (per-run review limits take precedence):**
 1. Environment variables (highest)
 2. Config file (`~/.codeant/config.json`)
 3. Default values

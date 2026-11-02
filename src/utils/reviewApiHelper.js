@@ -2,8 +2,8 @@ import CommonApiHelper from './commonApiHelper.js';
 import path from 'path';
 import fs from 'fs';
 import { minimatch } from 'minimatch';
+import { getReviewMaxFiles } from './reviewConfig.js';
 
-const MAX_REVIEW_FILES = 40;
 const MAX_FILE_LINES = 5000;
 const MAX_FILE_SIZE_BYTES = 200 * 1024; // 200 KB
 
@@ -85,6 +85,7 @@ class ReviewApiHelper extends CommonApiHelper {
    * Build the complete request body for the agentic review API
    */
   async buildReviewApiRequest(type = 'staged-only', includePatterns = [], excludePatterns = [], options = {}) {
+    const maxFiles = getReviewMaxFiles(options.maxFiles);
     const diffs = await this.getFilesForType(type, options);
 
     // diffs is either a string (from getAllDiffs) or an array of structured diff objects
@@ -141,16 +142,20 @@ class ReviewApiHelper extends CommonApiHelper {
         }
       }
 
-      const reviewedFiles = Object.keys(fileContents);
+      const reviewedFiles = keptSections.map(section => section.match(/^diff --git a\/.+ b\/(.+)$/m)[1]);
+      for (const file of reviewedFiles.slice(maxFiles)) {
+        skipped.push({ file, reason: `exceeded ${maxFiles}-file limit` });
+        delete fileContents[file];
+      }
       return {
-        diff_content: keptSections.join(''),
+        diff_content: keptSections.slice(0, maxFiles).join(''),
         file_contents: fileContents,
         _meta: {
-          reviewed_files: reviewedFiles,
+          reviewed_files: reviewedFiles.slice(0, maxFiles),
           total_changed: fileSections.length,
           skipped,
-          capped: false,
-          max_files: MAX_REVIEW_FILES,
+          capped: reviewedFiles.length > maxFiles,
+          max_files: maxFiles,
         },
       };
     }
@@ -217,15 +222,15 @@ class ReviewApiHelper extends CommonApiHelper {
       }
     }
 
-    // Apply MAX_REVIEW_FILES cap after all filtering (binary, deleted, pattern, size)
+    // Apply the file cap after all filtering (binary, deleted, pattern, size)
     let capped = false;
     const cappedFileOrder = [];
     for (const f of fileOrder) {
       if (skippedLargeFiles.has(f)) continue;
-      if (cappedFileOrder.length >= MAX_REVIEW_FILES) {
+      if (cappedFileOrder.length >= maxFiles) {
         capped = true;
         if (!seenSkipped.has(f)) {
-          dedupedSkipped.push({ file: f, reason: `exceeded ${MAX_REVIEW_FILES}-file limit` });
+          dedupedSkipped.push({ file: f, reason: `exceeded ${maxFiles}-file limit` });
           seenSkipped.add(f);
         }
         continue;
@@ -259,7 +264,7 @@ class ReviewApiHelper extends CommonApiHelper {
         total_changed: allUniqueFiles.size,
         skipped: dedupedSkipped,
         capped,
-        max_files: MAX_REVIEW_FILES,
+        max_files: maxFiles,
       },
     };
   }

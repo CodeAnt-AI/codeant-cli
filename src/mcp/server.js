@@ -652,6 +652,7 @@ export function createMcpServer() {
           .enum(['all', 'uncommitted', 'staged-only', 'committed', 'last-commit', 'last-n-commits', 'base-branch', 'base-commit'])
           .optional()
           .describe('Review scope. Default "uncommitted".'),
+        maxFiles: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional().describe('Maximum files for this review. Overrides CODEANT_REVIEW_MAX_FILES and global reviewMaxFiles; default 100.'),
         lastNCommits: z.number().int().positive().max(5).optional(),
         baseBranch: z.string().optional().describe('Branch for scope "base-branch". Reviews committed, uncommitted and untracked changes since the merge-base with this branch.'),
         baseCommit: z.string().optional().describe('Commit for scope "base-commit". Reviews committed, uncommitted and untracked changes since this commit.'),
@@ -665,6 +666,7 @@ export function createMcpServer() {
         const result = await runReviewHeadless({
           workspacePath: process.cwd(),
           scanType: input.scope ?? 'uncommitted',
+          maxFiles: input.maxFiles,
           lastNCommits: input.lastNCommits ?? 1,
           include: input.include ?? [],
           exclude: input.exclude ?? [],

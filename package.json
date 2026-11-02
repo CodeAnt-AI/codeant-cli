@@ -1,6 +1,6 @@
 {
   "name": "codeant-cli",
-  "version": "0.5.15",
+  "version": "0.5.16",
   "description": "Code review CLI tool",
   "type": "module",
   "repository": {
@@ -46,6 +46,7 @@
   },
   "files": [
     "src",
+    "skills",
     "findings.md",
     "cli-api.md",
     "scans.md",

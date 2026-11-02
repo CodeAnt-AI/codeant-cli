@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.16] - 01/11/2026
+
+- Raised the default local-review cap from 40 to 100 eligible files. Added `review --max-files <n>` and programmatic/MCP `maxFiles` overrides for larger changes.
+- Added `set-review-max-files <n>` and `CODEANT_REVIEW_MAX_FILES` for a global default. Per-run overrides take precedence and do not change saved configuration.
+- Applied the effective cap consistently to structured and raw diffs, with skipped-file metadata reflecting the chosen limit.
+- Bundled the `codeant-ralf-loop` agent skill for iterative review and fixes, stopping on no new suggestions, repeated findings, or a bounded pass budget.
+
 ## [0.5.15] - 26/10/2026
 
 - Added `--secrets-scope current|history|all` to `findings repo` and `scans results`, with `current` as the default. Use `--history-run` to retrieve a specific history scan, including when no snapshot scan exists.

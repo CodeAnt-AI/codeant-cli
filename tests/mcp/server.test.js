@@ -300,6 +300,21 @@ describe('authentication', () => {
 });
 
 describe('codeant_review_local', () => {
+  it('forwards a per-run file limit to the review runner', async () => {
+    mocks.runReviewHeadless.mockResolvedValue({ issues: [], meta: { max_files: 150 }, error: null });
+    const client = await connect();
+    const result = await call(client, 'codeant_review_local', { maxFiles: 150 });
+    expect(mocks.runReviewHeadless).toHaveBeenCalledWith(expect.objectContaining({ maxFiles: 150 }));
+    expect(parse(result).meta.max_files).toBe(150);
+  });
+
+  it.each([0, -1, 1.5])('rejects invalid file limits: %s', async (maxFiles) => {
+    const client = await connect();
+    const result = await call(client, 'codeant_review_local', { maxFiles });
+    expect(result.isError).toBe(true);
+    expect(mocks.runReviewHeadless).not.toHaveBeenCalled();
+  });
+
   it('flags a failed review as an error instead of an empty issue list', async () => {
     mocks.runReviewHeadless.mockResolvedValue({ issues: [], meta: null, error: 'Could not find a .git directory.', noFiles: false });
     const client = await connect();

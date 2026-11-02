@@ -70,6 +70,7 @@ async function runTurnLoop(initialPayload, gitRoot, isRejectorLoop) {
  * @param {number}  [options.lastNCommits=1]
  * @param {string}  [options.baseBranch]
  * @param {string}  [options.baseCommit]
+ * @param {number}  [options.maxFiles]     - Per-run cap (overrides env/config; default 100)
  * @param {function} [options.onProgress]  - Optional callback(message) for progress updates
  * @returns {Promise<{issues: Array, meta: Object|null, error: string|null}>}
  */
@@ -85,6 +86,7 @@ export async function runReviewHeadless(options = {}) {
     baseBranch = null,
     baseCommit = null,
     selectedCommits = [],
+    maxFiles,
     onProgress = () => {},
     onFilesReady = () => {},
   } = options;
@@ -111,7 +113,7 @@ export async function runReviewHeadless(options = {}) {
     const helper = new ReviewApiHelper(workspacePath);
     await helper.init();
     const gitRoot = helper.getGitRoot() || workspacePath;
-    const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit, selectedCommits });
+    const requestBody = await helper.buildReviewApiRequest(scanType, include, exclude, { lastNCommits, baseBranch, baseCommit, selectedCommits, maxFiles });
 
     const meta = requestBody?._meta || null;
     delete requestBody._meta;
