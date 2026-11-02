@@ -32,7 +32,7 @@ The CodeAnt CLI ships an MCP (Model Context Protocol) server that exposes CodeAn
 | `codeant_pr_get` | read | Detail for a PR/MR. |
 | `codeant_pr_comments` | read | Comments on a PR, filtered. |
 | `codeant_comments_search` | read | Free-text search across CodeAnt review comments. |
-| `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes in the server's working directory. |
+| `codeant_review_local` | read | Run a CodeAnt review on local working-copy changes in the server's working directory. Optional `maxFiles` overrides the global file cap for this run (default 100). |
 | `codeant_login` | auth | Start browser sign-in; returns the sign-in link immediately. Call again to confirm. |
 | `codeant_logout` | auth | Revoke and clear the saved token (shared with the CLI). |
 | `codeant_scans_start` | **write** | Trigger a new scan. Gated. |

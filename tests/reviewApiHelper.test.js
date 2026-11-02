@@ -345,7 +345,7 @@ describe('ReviewApiHelper integration tests', () => {
       expect(result.file_contents).not.toHaveProperty('docs/guide.md');
     });
 
-    it.each([18, 40, 43])('applies the 40-file limit to %i staged files', async (totalFiles) => {
+    it.each([18, 100, 103])('applies the 100-file limit to %i staged files', async (totalFiles) => {
       for (let i = 1; i <= totalFiles; i++) {
         writeFile(`src/cap/file${i}.js`, `const f${i} = ${i};\n`);
       }
@@ -355,13 +355,13 @@ describe('ReviewApiHelper integration tests', () => {
       const result = await helper.buildReviewApiRequest('staged-only');
 
       const fileCount = Object.keys(result.file_contents).length;
-      expect(fileCount).toBe(Math.min(totalFiles, 40));
+      expect(fileCount).toBe(Math.min(totalFiles, 100));
       expect(result._meta.reviewed_files).toHaveLength(fileCount);
       expect(result.diff_content.match(/^diff --git /gm)).toHaveLength(fileCount);
-      expect(result._meta.max_files).toBe(40);
-      expect(result._meta.capped).toBe(totalFiles > 40);
-      expect(result._meta.skipped).toHaveLength(Math.max(totalFiles - 40, 0));
-    });
+      expect(result._meta.max_files).toBe(100);
+      expect(result._meta.capped).toBe(totalFiles > 100);
+      expect(result._meta.skipped).toHaveLength(Math.max(totalFiles - 100, 0));
+    }, 30000);
 
     it('skips files exceeding MAX_FILE_LINES (5000)', async () => {
       // Create a file with more than 5000 lines

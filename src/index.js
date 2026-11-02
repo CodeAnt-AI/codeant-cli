@@ -33,6 +33,7 @@ const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
 const toCount = intOption({ min: 1 });
+const toReviewMaxFiles = intOption({ min: 1, max: Number.MAX_SAFE_INTEGER });
 const toOffset = intOption();
 
 // Split comma-separated globs while preserving commas inside {} brace expansions (e.g. "*.{js,ts}")
@@ -119,6 +120,7 @@ program
 program
   .command('review')
   .description('Run AI-powered code review')
+  .option('--max-files <n>', 'Maximum files to review for this run (overrides env/config; default 100)', toReviewMaxFiles)
   .option('--all', 'Review committed + uncommitted changes (default)')
   .option('--committed', 'Review only unpushed commits')
   .option('--uncommitted', 'Review only uncommitted changes (staged + unstaged + untracked)')
@@ -178,14 +180,24 @@ program
         exclude,
         baseBranch,
         baseCommit,
+        maxFiles: options.maxFiles,
         onProgress: (msg) => console.error(`[progress] ${msg}`),
         onFilesReady: (files, meta) => console.error(`[files] Reviewing ${files.length} file(s)`),
       });
       console.log(JSON.stringify(result, null, 2));
       process.exit(result.error ? 1 : 0);
     } else {
-      render(React.createElement(Review, { scanType, lastNCommits, failOn, include, exclude, baseBranch, baseCommit }));
+      render(React.createElement(Review, { scanType, lastNCommits, failOn, include, exclude, baseBranch, baseCommit, maxFiles: options.maxFiles }));
     }
+  });
+
+program
+  .command('set-review-max-files')
+  .description('Set the global default maximum files per review')
+  .argument('<n>', 'Positive file limit', toReviewMaxFiles)
+  .action((maxFiles) => {
+    setConfigValue('reviewMaxFiles', maxFiles);
+    console.log(`Global review file limit set to ${maxFiles}.`);
   });
 
 program
