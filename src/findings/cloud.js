@@ -1,9 +1,13 @@
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { resolveCliTenant } from '../api/tenant.js';
 import { fetchAppApi } from '../utils/fetchApi.js';
 import { fetchPaginated } from './paginate.js';
 
 const PROVIDERS = new Set(['aws', 'azure', 'gcp']);
 const KINDS = new Set(['cspm', 'vm', 'container']);
+const SEVERITIES = ['critical', 'high', 'medium', 'low', 'unknown'];
+const POLL_INTERVAL_MS = 15_000;
 
 function normalizeProvider(value, { allowAll = false } = {}) {
   const provider = String(value || '').trim().toLowerCase();
@@ -114,6 +118,52 @@ export async function runCloudFindingGet(options = {}) {
     ...(kind === 'cspm' ? providerScope(provider, options) : {}),
     ...(kind === 'cspm' && options.cloudService ? { [`${provider}_service`]: options.cloudService } : {}),
   });
+}
+
+function scanSummary(scan, failOn) {
+  const { findings, total, limit, offset, ...summary } = scan;
+  if (!failOn) return summary;
+  const blocking = SEVERITIES.slice(0, SEVERITIES.indexOf(failOn) + 1);
+  return {
+    ...summary,
+    fail_on: failOn,
+    threshold_breached: blocking.some((severity) => summary.severity_rollup?.[severity] > 0),
+  };
+}
+
+export async function runCloudScanStart(options = {}) {
+  const provider = normalizeProvider(options.provider);
+  if (normalizeKind(options.kind) !== 'container') {
+    throw new Error('Only --kind container scans can be started from the CLI.');
+  }
+  const failOn = options.failOn?.toString().trim().toLowerCase();
+  if (failOn !== undefined && !SEVERITIES.includes(failOn)) {
+    throw new Error(`--fail-on must be one of: ${SEVERITIES.join(', ')}.`);
+  }
+  if (failOn !== undefined && !options.wait) throw new Error('--fail-on requires --wait.');
+  const target = {};
+  if (provider === 'aws') target.region = requireValue(options.region, '--region for AWS container scans');
+  if (options.configId) target.config_id = options.configId;
+  if (options.repositories) {
+    target.repositories = String(options.repositories).split(',').map((name) => name.trim()).filter(Boolean);
+  }
+
+  const tenant = await resolveCliTenant(options);
+  const started = await request(provider, 'container', 'start', options, target, tenant);
+  if (!options.wait) return started;
+
+  const timeout = options.timeout ?? 1800;
+  const deadline = Date.now() + timeout * 1000;
+  for (;;) {
+    const scan = await request(provider, 'container', 'results/paginated', options, { scan_id: started.scan_id, limit: 25 }, tenant);
+    if (scan.status !== 'running') return scanSummary(scan, failOn);
+    if (Date.now() >= deadline) {
+      const err = new Error(`Scan ${started.scan_id} is still running after ${timeout}s. Check it later with: codeant findings cloud list --provider ${provider} --kind container --scan-id ${started.scan_id}`);
+      err.exitCode = 4;
+      throw err;
+    }
+    await sleep(Math.min(POLL_INTERVAL_MS, deadline - Date.now()));
+  }
 }
 
 export { normalizeKind, normalizeProvider };
