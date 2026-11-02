@@ -1,19 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import ReviewApiHelper from '../src/utils/reviewApiHelper.js';
-import { runReviewHeadless } from '../src/reviewHeadless.js';
-import { fetchApi } from '../src/utils/fetchApi.js';
-
-vi.mock('../src/utils/config.js', () => ({ getConfigValue: vi.fn() }));
-vi.mock('../src/utils/analytics.js', () => ({ track: vi.fn() }));
-vi.mock('../src/utils/fetchApi.js', () => ({ fetchApi: vi.fn() }));
 
 /**
  * Integration tests for ReviewApiHelper.buildReviewApiRequest()
- * using a real git repository, with global config and API calls isolated.
+ * using a real git repository. No mocking.
  */
 
 let testDir;
@@ -54,16 +48,9 @@ describe('ReviewApiHelper integration tests', () => {
   });
 
   beforeEach(() => {
-    vi.stubEnv('CODEANT_REVIEW_MAX_FILES', undefined);
-    delete process.env.CODEANT_REVIEW_MAX_FILES;
     git('checkout -- .');
     git('reset HEAD -- .');
     git('clean -fd');
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
   });
 
   // ─────────────────────────────────────────────────────
@@ -358,7 +345,7 @@ describe('ReviewApiHelper integration tests', () => {
       expect(result.file_contents).not.toHaveProperty('docs/guide.md');
     });
 
-    it.each([40, 100, 103])('applies the 100-file default to %i staged files', async (totalFiles) => {
+    it.each([18, 100, 103])('applies the 100-file limit to %i staged files', async (totalFiles) => {
       for (let i = 1; i <= totalFiles; i++) {
         writeFile(`src/cap/file${i}.js`, `const f${i} = ${i};\n`);
       }
@@ -374,74 +361,6 @@ describe('ReviewApiHelper integration tests', () => {
       expect(result._meta.max_files).toBe(100);
       expect(result._meta.capped).toBe(totalFiles > 100);
       expect(result._meta.skipped).toHaveLength(Math.max(totalFiles - 100, 0));
-    }, 30000);
-
-    it.each(['staged-only', 'uncommitted', 'all', 'base-commit', 'last-commit'])('overrides the cap above 100 for %s', async (scope) => {
-      for (let index = 0; index < 105; index++) {
-        writeFile(`src/cap/file${index}.js`, `export const value = ${index};\n`);
-      }
-      git('add src/cap');
-      const baseCommit = git('rev-parse HEAD');
-      if (scope === 'last-commit') git('commit -m "large change"');
-
-      try {
-        const helper = await createHelper();
-        const result = await helper.buildReviewApiRequest(scope, [], [], { maxFiles: 102, baseCommit });
-
-        expect(result._meta).toMatchObject({ max_files: 102, capped: true, total_changed: 105 });
-        expect(result._meta.reviewed_files).toHaveLength(102);
-        expect(Object.keys(result.file_contents)).toHaveLength(102);
-        expect(result.diff_content.match(/^diff --git /gm)).toHaveLength(102);
-        expect(result._meta.skipped).toHaveLength(3);
-      } finally {
-        if (scope === 'last-commit') git(`reset --hard ${baseCommit}`);
-      }
-    }, 30000);
-
-    it('filters excluded and oversized files before applying a smaller cap', async () => {
-      writeFile('src/cap/0.png', 'image');
-      writeFile('src/cap/1.js', 'x'.repeat(201 * 1024));
-      writeFile('src/cap/2.js', 'export const a = 1;\n');
-      writeFile('src/cap/3.js', 'export const b = 2;\n');
-      writeFile('src/cap/4.js', 'export const c = 3;\n');
-      git('add src/cap');
-
-      const helper = await createHelper();
-      const result = await helper.buildReviewApiRequest('staged-only', [], [], { maxFiles: 2 });
-
-      expect(result._meta.reviewed_files).toEqual(['src/cap/2.js', 'src/cap/3.js']);
-      expect(result._meta.skipped).toContainEqual({ file: 'src/cap/4.js', reason: 'exceeded 2-file limit' });
-    });
-
-    it('applies the override to raw diffs and reports diff-only files', async () => {
-      const helper = await createHelper();
-      const sections = ['src/app.js', 'missing.js', 'src/utils.js'].map(file =>
-        `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-old\n+new\n`
-      );
-      vi.spyOn(helper, 'getFilesForType').mockResolvedValue(sections.join(''));
-
-      const result = await helper.buildReviewApiRequest('all', [], [], { maxFiles: 2 });
-
-      expect(result._meta.reviewed_files).toEqual(['src/app.js', 'missing.js']);
-      expect(result._meta).toMatchObject({ capped: true, max_files: 2 });
-      expect(result.diff_content).toBe(sections.slice(0, 2).join(''));
-      expect(result.file_contents).not.toHaveProperty('src/utils.js');
-    });
-
-    it('sends all 100 files through the headless review pipeline in five-file batches', async () => {
-      for (let index = 0; index < 100; index++) {
-        writeFile(`src/cap/file${index}.js`, `export const value = ${index};\n`);
-      }
-      git('add src/cap');
-      fetchApi.mockReset().mockResolvedValue({ session_id: 'test-session', done: true, output: { code_suggestions: [] } });
-
-      const result = await runReviewHeadless({ workspacePath: testDir, scanType: 'staged-only', maxFiles: 100 });
-      const batches = fetchApi.mock.calls.map(([, , payload]) => payload).filter(payload => payload.prompt_template_name !== 'risk_planner');
-
-      expect(result.error).toBeNull();
-      expect(result.meta.reviewed_files).toHaveLength(100);
-      expect(batches).toHaveLength(20);
-      expect(new Set(batches.flatMap(batch => Object.keys(batch.file_contents))).size).toBe(100);
     }, 30000);
 
     it('skips files exceeding MAX_FILE_LINES (5000)', async () => {

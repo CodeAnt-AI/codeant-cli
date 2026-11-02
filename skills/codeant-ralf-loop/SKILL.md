@@ -12,7 +12,7 @@ Use the CodeAnt CLI to review, fix, and iterate on the user's selected changes. 
 Run from the repository root. Preserve the requested scope and include/exclude patterns across passes. Default to `--uncommitted`. For a branch review, resolve the merge-base once and use `--base-commit <sha>` on every pass so that fixes in the working tree stay in scope. For `--last-commit`, `--last-n-commits`, or `--committed`, resolve the corresponding starting commit and likewise use `--base-commit <sha>`; rerunning only committed changes would miss fixes. For staged review, do not stage changes automatically; verify working-tree fixes with `--uncommitted` limited to the original staged file paths.
 
 ```bash
-codeant review --uncommitted --max-files 150 --headless
+codeant review --uncommitted --headless
 ```
 
 Use the user's file limit. The default is 100; `--max-files <n>` changes only that invocation. A global default can be set with `codeant set-review-max-files 150` or `CODEANT_REVIEW_MAX_FILES=150`. Do not change global configuration merely to run the loop.
