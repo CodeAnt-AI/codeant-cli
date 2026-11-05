@@ -188,6 +188,14 @@ export function renderError(error) {
   );
 }
 
+export function renderSkipped(message) {
+  return React.createElement(
+    Box, { flexDirection: 'column', paddingX: 1, paddingY: 1 },
+    React.createElement(Text, { color: 'cyan', bold: true }, 'CodeAnt Secrets'),
+    React.createElement(Text, { color: 'yellow' }, `  ⚠ ${message}`),
+  );
+}
+
 export function renderNotLoggedIn() {
   return React.createElement(
     Box, { flexDirection: 'column', paddingX: 1, paddingY: 1 },
