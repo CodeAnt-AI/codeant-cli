@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.17] - 05/11/2026
+
+- Using CodeAnt's proprietary scanner.
+
 ## [0.5.16] - 01/11/2026
 
 - Raised the default local-review cap from 40 to 100 eligible files. Added `review --max-files <n>` and programmatic/MCP `maxFiles` overrides for larger changes.

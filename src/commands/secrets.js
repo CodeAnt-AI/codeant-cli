@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from 'ink';
 import SecretsApiHelper from '../utils/secretsApiHelper.js';
-import { detectSecrets } from '../utils/secretsDetector.js';
 import { fetchApi } from '../utils/fetchApi.js';
 import { detectRemote, detectRepoName, detectBaseUrl } from '../scm/index.js';
 import {
@@ -10,6 +9,7 @@ import {
   renderScanning,
   renderNoFiles,
   renderError,
+  renderSkipped,
   renderDone,
   renderBypassPrompt,
 } from '../components/SecretsUI.js';
@@ -19,6 +19,7 @@ export default function Secrets({ scanType = 'all', include = [], exclude = [], 
   const [status, setStatus] = useState('initializing');
   const [secrets, setSecrets] = useState([]);
   const [error, setError] = useState(null);
+  const [skipMessage, setSkipMessage] = useState(null);
   const [fileCount, setFileCount] = useState(0);
   const [scanMeta, setScanMeta] = useState(null);
   const [startTime] = useState(() => Date.now());
@@ -50,10 +51,18 @@ export default function Secrets({ scanType = 'all', include = [], exclude = [], 
         setFileCount(requestBody.files.length);
         setStatus('scanning');
 
-        // Local detection — no API call needed
-        const detectedSecrets = detectSecrets(requestBody.files);
+        const response = await fetchApi(
+          '/extension/analysis/secrets', 'POST', requestBody
+        );
 
         if (cancelled) return;
+        if (response.status === 'skipped' && response.reason === 'daily_limit_reached') {
+          setSkipMessage(response.message);
+          setStatus('skipped');
+          return;
+        }
+
+        const detectedSecrets = response.secretsDetected;
         const filesWithSecrets = detectedSecrets.filter(
           file => file.secrets && file.secrets.length > 0
         );
@@ -136,10 +145,10 @@ export default function Secrets({ scanType = 'all', include = [], exclude = [], 
       } else {
         setTimeout(() => exit(), 100);
       }
-    } else if (status === 'no_files') {
+    } else if (status === 'no_files' || status === 'skipped') {
       setTimeout(() => exit(), 100);
     } else if (status === 'error') {
-      setTimeout(() => exit(new Error(error)), 100);
+      setTimeout(() => { if (!hook) process.exitCode = 1; exit(hook ? undefined : new Error(error)); }, 100);
     }
   }, [status, secrets]);
 
@@ -147,7 +156,8 @@ export default function Secrets({ scanType = 'all', include = [], exclude = [], 
   if (status === 'fetching_diff') return renderFetchingDiff(startTime);
   if (status === 'scanning') return renderScanning(startTime, fileCount, scanMeta);
   if (status === 'no_files') return renderNoFiles(scanType, lastNCommits, baseBranch, baseCommit);
-  if (status === 'error') return renderError(error);
+  if (status === 'error') return hook ? renderSkipped(`Secret scan failed; analysis skipped. ${error}`) : renderError(error);
+  if (status === 'skipped') return renderSkipped(skipMessage);
   if (status === 'prompt_bypass') return renderBypassPrompt(secrets, handleBypassSelect);
   if (status === 'done') return renderDone(secrets, startTime, fileCount, scanMeta);
 

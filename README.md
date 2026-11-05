@@ -53,6 +53,13 @@ codeant logout
 
 Scan your code for exposed secrets, API keys, and credentials.
 
+Selected file contents are sent to the CodeAnt backend and scanned with CodeAnt's proprietary scanner.
+Login and network access are required. Precommit scans use the same backend endpoint;
+a failed scan shows a warning and allows the commit to continue.
+Each user can scan 1,000 files per UTC day, shared across their API keys; repeated scans count again.
+When a batch exceeds the remaining allowance, analysis is skipped with a warning
+and the commit is allowed to continue. Files count when a scan starts.
+
 ```bash
 codeant secrets [options]
 ```
